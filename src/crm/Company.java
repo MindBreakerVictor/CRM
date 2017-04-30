@@ -10,8 +10,8 @@ public class Company extends Customer {
     public Company() { }
 
     public Company(String name, String fiscalCode, String bankAccount, String headquartersAddress,
-                   String deliveryAddress, String contactNumber) {
-        super(deliveryAddress, contactNumber);
+                   int id, String deliveryAddress, String contactNumber) {
+        super(id, deliveryAddress, contactNumber);
         this.name = name;
         this.fiscalCode = fiscalCode;
         this.bankAccount = bankAccount;
@@ -19,7 +19,7 @@ public class Company extends Customer {
     }
 
     public Company(Company company) {
-        super(company.getDeliveryAddress(), company.getContactNumber());
+        super(company.getId(), company.getDeliveryAddress(), company.getContactNumber());
         name = company.name;
         fiscalCode = company.fiscalCode;
         bankAccount = company.bankAccount;
@@ -56,5 +56,10 @@ public class Company extends Customer {
 
     public void setHeadquartersAddress(String headquartersAddress) {
         this.headquartersAddress = headquartersAddress;
+    }
+
+    @Override
+    public String toString() {
+        return super.toString() + ", " + name + ", " + fiscalCode + ", " + bankAccount + ", " + headquartersAddress;
     }
 }

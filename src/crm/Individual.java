@@ -7,14 +7,14 @@ public class Individual extends Customer {
 
     public Individual() { }
 
-    public Individual(String firstName, String lastName, String deliveryAddress, String contactNumber) {
-        super(deliveryAddress, contactNumber);
+    public Individual(String firstName, String lastName, int id, String deliveryAddress, String contactNumber) {
+        super(id, deliveryAddress, contactNumber);
         this.firstName = firstName;
         this.lastName = lastName;
     }
 
     public Individual(Individual individual) {
-        super(individual.getDeliveryAddress(), individual.getContactNumber());
+        super(individual.getId(), individual.getDeliveryAddress(), individual.getContactNumber());
         firstName = individual.firstName;
         lastName = individual.lastName;
     }
@@ -33,5 +33,10 @@ public class Individual extends Customer {
 
     public void setLastName(String lastName) {
         this.lastName = lastName;
+    }
+
+    @Override
+    public String toString() {
+        return super.toString() + ", " + firstName + ", " + lastName;
     }
 }

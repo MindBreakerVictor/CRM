@@ -2,9 +2,6 @@ package crm;
 
 import java.util.HashMap;
 
-/**
- * Created by Robert Tanase on 30-Apr-17.
- */
 public class Deposit {
 
     private static  HashMap<Product, Integer> products = new HashMap<Product, Integer>();

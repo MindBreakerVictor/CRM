@@ -1,57 +1,62 @@
 package crm;
 
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * Created by Robert Tanase on 30-Apr-17.
- */
 public class Invoice {
 
+    private int uid;
+    private String date;
     private Customer customer;
-    private HashMap<Product, Integer> products = new HashMap<>();
-    private static int id;
-    private int UID;
+    private HashMap<Product, Integer> products;
+
+    private static int currentId;
+
     static {
-        id = 0;
-    }
-    {
-        UID = ++id;
+        currentId = 0;
     }
 
-    public Invoice() {
+    {
+        uid = ++currentId;
+        products = new HashMap<>();
     }
+
+    public Invoice() { }
 
     public Invoice(Customer customer) {
         this.customer = customer;
-    }
-
-    public void addProduct (Product p, Integer quantity) {
-        products.put(p, quantity);
     }
 
     public HashMap<Product, Integer> getProducts() {
         return products;
     }
 
-    public int getId() {
-        return UID;
+    public void addProduct(Product p, int quantity) {
+        products.put(p, quantity);
     }
+
+    public void removeProduct(Product p, int quantity) { }
+
+    public int getId() {
+        return uid;
+    }
+
+    public void setId(int uid) { this.uid = uid; }
 
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        Set entry = products.entrySet();
-        Iterator i = entry.iterator();
+        Set entrySet = products.entrySet();
 
-        while(i.hasNext()){
-            Map.Entry ent = (Map.Entry)i.next();
-                sb.append((String)ent.getValue() + "x  " + (String)ent.getKey() + "\n");
+        for (Object entry : entrySet) {
+            Map.Entry mapEntry = (Map.Entry)entry;
+            sb.append(mapEntry.getValue().toString());
+            sb.append(", ");
+            sb.append(mapEntry.getKey().toString());
+            sb.append(", ");
         }
 
-        return "UID Invoice: " + UID + "\nCustomer: " + customer.toString() + "\nBuyed products: " + sb;
+        return uid + ", " + customer.toString() + ", " + sb;
     }
-
 }
