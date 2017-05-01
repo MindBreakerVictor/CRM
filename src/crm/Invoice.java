@@ -28,6 +28,11 @@ public class Invoice {
         this.customer = customer;
     }
 
+    public void addProduct (Product p, Integer quantity) {
+        products.put(p, quantity);
+        Deposit.sellProduct( p ,quantity);
+    }
+
     public HashMap<Product, Integer> getProducts() {
         return products;
     }
