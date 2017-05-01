@@ -12,14 +12,6 @@ public class Product {
         this.price = price;
     }
 
-    public boolean isInStock() {
-        return Deposit.isInStock(this);
-    }
-
-    public int getStock() {
-        return Deposit.getStock(this);
-    }
-
     public Double getPrice() {
         return price;
     }
@@ -34,5 +26,18 @@ public class Product {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public boolean isInStock() {
+        return Deposit.isInStock(this);
+    }
+
+    public int getStock() {
+        return Deposit.getStock(this);
+    }
+
+    @Override
+    public String toString() {
+        return name + ", " + price.toString();
     }
 }
