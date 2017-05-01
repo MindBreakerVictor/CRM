@@ -1,27 +1,23 @@
 package crm;
 
-/**
- * Created by Robert Tanase on 30-Apr-17.
- */
 public class Product {
 
     private Double price;
     private String name;
+
+    public Product() { }
+
+    public Product(String name, Double price) {
+        this.name = name;
+        this.price = price;
+    }
 
     public boolean isInStock() {
         return Deposit.isInStock(this);
     }
 
     public int getStock() {
-        return  Deposit.getStock(this);
-    }
-
-    public Product() {
-    }
-
-    public Product(String name, Double price) {
-        this.name = name;
-        this.price = price;
+        return Deposit.getStock(this);
     }
 
     public Double getPrice() {
@@ -39,5 +35,4 @@ public class Product {
     public void setName(String name) {
         this.name = name;
     }
-
 }

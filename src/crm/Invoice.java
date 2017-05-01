@@ -28,6 +28,14 @@ public class Invoice {
         this.customer = customer;
     }
 
+    public String getDate() { return date; }
+
+    public void setDate(String date) { this.date = date; }
+
+    public Customer getCustomer() { return customer; }
+
+    public void setCustomer(Customer customer) { this.customer = customer; }
+
     public HashMap<Product, Integer> getProducts() {
         return products;
     }
