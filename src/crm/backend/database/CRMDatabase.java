@@ -1,6 +1,6 @@
-package crm.database;
+package crm.backend.database;
 
-import crm.*;
+import crm.backend.data.*;
 
 import java.io.File;
 import java.sql.*;

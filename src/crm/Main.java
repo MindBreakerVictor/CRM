@@ -1,5 +1,13 @@
 package crm;
 
+import crm.backend.data.*;
+import crm.backend.management.Accounting;
+import crm.backend.management.Deposit;
+import crm.frontend.AccountingGUI;
+import crm.frontend.AddCustomerGUI;
+import crm.frontend.InvoiceScreen;
+import crm.frontend.MainScreen;
+
 import java.util.Scanner;
 
 public class Main {

@@ -1,4 +1,6 @@
-package crm;
+package crm.backend.data;
+
+import crm.backend.management.Deposit;
 
 public class Product {
 

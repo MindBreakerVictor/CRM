@@ -1,4 +1,7 @@
-package crm;
+package crm.backend.management;
+
+import crm.backend.data.Customer;
+import crm.backend.data.Invoice;
 
 import java.util.ArrayList;
 import java.util.List;

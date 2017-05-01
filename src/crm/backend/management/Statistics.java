@@ -1,8 +1,5 @@
-package crm;
+package crm.backend.management;
 
-/**
- * Created by Robert Tanase on 30-Apr-17.
- */
 public class Statistics {
     //Habar nu am ce sa scriu aici, dar am zis sa fie clasa facuta\
     /*

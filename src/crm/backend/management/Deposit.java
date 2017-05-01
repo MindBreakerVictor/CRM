@@ -1,4 +1,6 @@
-package crm;
+package crm.backend.management;
+
+import crm.backend.data.Product;
 
 import java.util.HashMap;
 import java.util.Map;

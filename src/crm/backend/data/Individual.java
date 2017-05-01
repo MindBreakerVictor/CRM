@@ -1,4 +1,4 @@
-package crm;
+package crm.backend.data;
 
 public class Individual extends Customer {
 

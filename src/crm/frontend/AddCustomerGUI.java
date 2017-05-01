@@ -1,4 +1,4 @@
-package crm;
+package crm.frontend;
 
 import javax.swing.*;
 import java.awt.event.ActionEvent;
