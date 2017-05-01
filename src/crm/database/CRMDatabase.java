@@ -2,10 +2,11 @@ package crm.database;
 
 import crm.*;
 
+import java.io.File;
 import java.sql.*;
 import java.util.Map;
 
-public class CRMDatabase {
+public class CRMDatabase implements AutoCloseable {
 
     private Connection connection;
 
@@ -15,7 +16,8 @@ public class CRMDatabase {
             "`id` INTEGER NOT NULL, " +
             "`delivery_address` TEXT NOT NULL, " +
             "`contact_number` TEXT NOT NULL, " +
-            "PRIMARY KEY(`id`)" +
+            "PRIMARY KEY(`id`), " +
+            "UNIQUE(`contact_number`)" +
         ");\n" +
         "CREATE TABLE IF NOT EXISTS `individual` (" +
             "`customer_id` INTEGER NOT NULL, " +
@@ -31,6 +33,7 @@ public class CRMDatabase {
             "`bank_account` TEXT NOT NULL, " +
             "`hq_address` TEXT NOT NULL, " +
             "PRIMARY KEY(`customer_id`), " +
+            "UNIQUE(`name`), UNIQUE(`fiscal_code`), UNIQUE(`bank_account`), UNIQUE(`hq_address`), " +
             "FOREIGN KEY(`customer_id`) REFERENCES `customer`(`id`)" +
         ");\n" +
         "CREATE TABLE IF NOT EXISTS `product` (" +
@@ -65,10 +68,18 @@ public class CRMDatabase {
      * @throws SQLException
      */
     public void connect() throws SQLException {
-        String url = "jdbc:sqlite:C/ProgramData/CRM/crm.db";
-        connection = DriverManager.getConnection(url);
+        File crmProgramDataFolder = new File(System.getenv("PROGRAMDATA") + "\\CRM");
+
+        if (!crmProgramDataFolder.exists())
+            crmProgramDataFolder.mkdir();
+
+        String crmProgramDataFolderPath = crmProgramDataFolder.getAbsolutePath();
+        crmProgramDataFolderPath = crmProgramDataFolderPath.replace('\\', '/');
+
+        connection = DriverManager.getConnection("jdbc:sqlite:" + crmProgramDataFolderPath + "/crm.db");
         Statement statement = connection.createStatement();
-        statement.execute(DatabaseCreation);
+
+        statement.executeUpdate(DatabaseCreation);
         statement.close();
     }
 
@@ -76,7 +87,8 @@ public class CRMDatabase {
      * Disconnects from SQLite3 database.
      * @throws SQLException
      */
-    public void disconnect() throws SQLException {
+    @Override
+    public void close() throws SQLException {
         if (connection != null) {
             connection.close();
             connection = null;
