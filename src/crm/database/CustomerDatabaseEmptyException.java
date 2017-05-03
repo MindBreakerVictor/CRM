@@ -1,4 +1,4 @@
-package crm.backend.database;
+package crm.database;
 
 public class CustomerDatabaseEmptyException extends Exception {
 }

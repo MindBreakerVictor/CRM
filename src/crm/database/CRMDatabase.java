@@ -1,16 +1,16 @@
-package crm.backend.database;
+package crm.database;
 
-import crm.backend.data.*;
+import crm.data.*;
 
 import java.io.File;
 import java.sql.*;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 
 public class CRMDatabase implements AutoCloseable {
 
     private Connection connection;
 
-    /* TODO: Add unique key constrains. */
     private static final String DatabaseCreation = "PRAGMA foreign_keys=ON;\n" +
         "CREATE TABLE IF NOT EXISTS `customer` (" +
             "`id` INTEGER NOT NULL, " +
@@ -61,7 +61,10 @@ public class CRMDatabase implements AutoCloseable {
             "FOREIGN KEY(`product_id`) REFERENCES `product`(`id`)" +
         ");";
 
-    public CRMDatabase() { connection = null; }
+    public CRMDatabase() throws SQLException {
+        connection = null;
+        connect();
+    }
 
     /**
      * Connects to SQLite3 database. If the database doesn't exists, it will create it.
@@ -226,19 +229,21 @@ public class CRMDatabase implements AutoCloseable {
 
     /**
      * Insert a product in the database.
-     * @param product must be a valid product.
+     * @param name
+     * @param price
+     * @param stock
      * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
      * @throws SQLException
      */
-    public void insertProduct(Product product) throws CRMDBNotConnectedException, SQLException {
+    public void insertProduct(String name, double price, int stock) throws CRMDBNotConnectedException, SQLException {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
         String insertProduct = "INSERT INTO `product`(`name`, `price`, `stock`) VALUES (?, ?, ?);";
         PreparedStatement statement = connection.prepareStatement(insertProduct);
-        statement.setString(1, product.getName());
-        statement.setDouble(2, product.getPrice());
-        statement.setInt(3, product.getStock());
+        statement.setString(1, name);
+        statement.setDouble(2, price);
+        statement.setInt(3, stock);
         statement.executeUpdate();
         statement.close();
     }
@@ -275,10 +280,6 @@ public class CRMDatabase implements AutoCloseable {
         throw new InvalidProductException();
     }
 
-    public int getProductId(Product product) throws CRMDBNotConnectedException, SQLException, InvalidProductException {
-        return getProductId(product.getName());
-    }
-
     /**
      * Insert an invoice in the database.
      * TODO: This should be done transactional.
@@ -292,6 +293,7 @@ public class CRMDatabase implements AutoCloseable {
      * @throws EmptyInvoiceException if the invoice doesn't have any products in it.
      * @throws InvalidProductException if the invoice contains a product that isn't in the database.
      */
+    /*
     public void insertInvoice(Invoice invoice) throws CRMDBNotConnectedException, SQLException,
             InvalidCustomerException, EmptyInvoiceException, InvalidProductException {
         if (connection == null || connection.isClosed())
@@ -329,7 +331,7 @@ public class CRMDatabase implements AutoCloseable {
             statement.close();
         }
     }
-
+*/
     /**
      * Update the price and stock of a product.
      * @param productName must be a product name of a product that is already in the database.
@@ -388,5 +390,69 @@ public class CRMDatabase implements AutoCloseable {
         statement.setInt(2, getProductId(productName));
         statement.executeUpdate();
         statement.close();
+    }
+
+    public List<Customer> getCustomers() throws CRMDBNotConnectedException, SQLException {
+        if (connection == null || connection.isClosed())
+            throw new CRMDBNotConnectedException();
+
+        List<Customer> customers = new ArrayList<>();
+        String getIndividuals = "SELECT i.customer_id, i.first_name, i.last_name, c.delivery_address, c.contact_number\n" +
+                "FROM individual i JOIN customer c ON (c.id = i.customer_id);";
+        String getCompanies = "SELECT co.customer_id, co.name, co.fiscal_code, co.bank_account, co.hq_address, " +
+                "c.delivery_address, c.contact_number\n" +
+                "FROM company co JOIN customer c ON (c.id = co.customer_id);";
+
+        Statement statement = connection.createStatement();
+        ResultSet resultSet = statement.executeQuery(getIndividuals);
+
+        while (resultSet.next())
+            customers.add(new Individual(resultSet.getString("first_name"),
+                    resultSet.getString("last_name"), resultSet.getInt("customer_id"),
+                    resultSet.getString("delivery_address"), resultSet.getString("contact_number")));
+
+        resultSet.close();
+
+        resultSet = statement.executeQuery(getCompanies);
+
+        while (resultSet.next())
+            customers.add(new Company(resultSet.getString("name"),
+                    resultSet.getString("fiscal_code"), resultSet.getString("bank_account"),
+                    resultSet.getString("hq_address"), resultSet.getInt("customer_id"),
+                    resultSet.getString("delivery_address"), resultSet.getString("contact_number")));
+
+        resultSet.close();
+        statement.close();
+        return customers;
+    }
+
+    public Object[][] getProducts() throws CRMDBNotConnectedException, SQLException {
+        if (connection == null || connection.isClosed())
+            throw new CRMDBNotConnectedException();
+
+        Object[][] productsData = null;
+        Statement statement = connection.createStatement();
+        ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) AS ResultsNo, " +
+                "CAST(NULL AS INT) AS ID, CAST(NULL AS TEXT) AS Name, " +
+                "CAST(NULL AS DOUBLE) AS Price, CAST(NULL AS INT) AS Stock " +
+                "FROM product UNION ALL SELECT CAST(NULL AS INT), * FROM product;"
+        );
+
+        if (resultSet.next()) {
+            productsData = new Object[resultSet.getInt("ResultsNo")][4];
+
+            int index = 0;
+
+            while (resultSet.next()) {
+                productsData[index][0] = resultSet.getInt("ID");
+                productsData[index][1] = resultSet.getString("Name");
+                productsData[index][2] = resultSet.getDouble("Price");
+                productsData[index++][3] = resultSet.getInt("Stock");
+            }
+        }
+
+        resultSet.close();
+        statement.close();
+        return productsData;
     }
 }

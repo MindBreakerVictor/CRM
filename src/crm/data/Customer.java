@@ -1,4 +1,4 @@
-package crm.backend.data;
+package crm.data;
 
 public abstract class Customer {
 

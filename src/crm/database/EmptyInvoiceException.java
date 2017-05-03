@@ -1,4 +1,4 @@
-package crm.backend.database;
+package crm.database;
 
 /**
  * This exception should be thrown when attempting to insert an empty invoice in the database.
