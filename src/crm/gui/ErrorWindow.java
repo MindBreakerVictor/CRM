@@ -16,15 +16,17 @@ public class ErrorWindow {
         frame.setContentPane(mainPanel);
     }
 
-    public ErrorWindow(boolean exitOnClose) {
-        if (exitOnClose)
-            frame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
+    public ErrorWindow(String message) {
+        this(message, false);
+    }
 
-        frame.setVisible(true);
+    public ErrorWindow(boolean exitOnClose) {
+        this("", exitOnClose);
     }
 
     public ErrorWindow(String message, boolean exitOnClose) {
-        errorMessage.setText(message);
+        if (!message.isEmpty())
+            errorMessage.setText(message);
 
         if (exitOnClose)
             frame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);

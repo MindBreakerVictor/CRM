@@ -7,6 +7,10 @@ public class Individual extends Customer {
 
     public Individual() { }
 
+    public Individual(String firstName, String lastName, String deliveryAddress, String contactNumber) {
+        this(firstName, lastName, 0, deliveryAddress, contactNumber);
+    }
+
     public Individual(String firstName, String lastName, int id, String deliveryAddress, String contactNumber) {
         super(id, deliveryAddress, contactNumber);
         this.firstName = firstName;

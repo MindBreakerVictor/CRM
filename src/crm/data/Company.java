@@ -10,6 +10,11 @@ public class Company extends Customer {
     public Company() { }
 
     public Company(String name, String fiscalCode, String bankAccount, String headquartersAddress,
+                   String deliveryAddress, String contactNumber) {
+        this(name, fiscalCode, bankAccount, headquartersAddress, 0, deliveryAddress, contactNumber);
+    }
+
+    public Company(String name, String fiscalCode, String bankAccount, String headquartersAddress,
                    int id, String deliveryAddress, String contactNumber) {
         super(id, deliveryAddress, contactNumber);
         this.name = name;

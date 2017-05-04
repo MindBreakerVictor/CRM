@@ -1,6 +1,7 @@
 package crm.database;
 
 import crm.data.*;
+import crm.gui.MainWindow;
 
 import java.io.File;
 import java.sql.*;
@@ -426,29 +427,136 @@ public class CRMDatabase implements AutoCloseable {
         return customers;
     }
 
+    public int getIndividualsNo() throws CRMDBNotConnectedException, SQLException {
+        if (connection == null || connection.isClosed())
+            throw new CRMDBNotConnectedException();
+
+        Statement statement = connection.createStatement();
+        ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) AS IndividualsNo FROM individual;");
+
+        int individualsNo = 0;
+
+        if (resultSet.next())
+            individualsNo = resultSet.getInt("IndividualsNo");
+
+        resultSet.close();
+        statement.close();
+        return individualsNo;
+    }
+
+    public int getCompaniesNo() throws CRMDBNotConnectedException, SQLException {
+        if (connection == null || connection.isClosed())
+            throw new CRMDBNotConnectedException();
+
+        Statement statement = connection.createStatement();
+        ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) AS CompaniesNo FROM company;");
+
+        int companiesNo = 0;
+
+        if (resultSet.next())
+            companiesNo = resultSet.getInt("CompaniesNo");
+
+        resultSet.close();
+        statement.close();
+        return companiesNo;
+    }
+
+    public int getProductsNo() throws CRMDBNotConnectedException, SQLException {
+        if (connection == null || connection.isClosed())
+            throw new CRMDBNotConnectedException();
+
+        Statement statement = connection.createStatement();
+        ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) AS ProductsNo FROM product;");
+
+        int productsNo = 0;
+
+        if (resultSet.next())
+            productsNo = resultSet.getInt("ProductsNo");
+
+        resultSet.close();
+        statement.close();
+        return productsNo;
+    }
+
+    public Object[][] getIndividuals() throws CRMDBNotConnectedException, SQLException {
+        if (connection == null || connection.isClosed())
+            throw new CRMDBNotConnectedException();
+
+        int individualsNo = getIndividualsNo();
+
+        if (individualsNo <= 0)
+            return null;
+
+        int index = 0;
+        Object[][] individualsData = new Object[individualsNo][MainWindow.individualsTableColumnNames.length];
+        Statement statement = connection.createStatement();
+        ResultSet resultSet = statement.executeQuery("SELECT i.customer_id, i.first_name, i.last_name, " +
+                "c.delivery_address, c.contact_number\n" +
+                "FROM individual i JOIN customer c ON (c.id = i.customer_id);");
+
+        while (resultSet.next()) {
+            individualsData[index][0] = resultSet.getInt("customer_id");
+            individualsData[index][1] = resultSet.getString("first_name");
+            individualsData[index][2] = resultSet.getString("last_name");
+            individualsData[index][3] = resultSet.getString("delivery_address");
+            individualsData[index++][4] = resultSet.getString("contact_number");
+        }
+
+        resultSet.close();
+        statement.close();
+        return individualsData;
+    }
+
+    public Object[][] getCompanies() throws CRMDBNotConnectedException, SQLException {
+        if (connection == null || connection.isClosed())
+            throw new CRMDBNotConnectedException();
+
+        int companiesNo = getCompaniesNo();
+
+        if (companiesNo <= 0)
+            return null;
+
+        int index = 0;
+        Object[][] companiesData = new Object[companiesNo][MainWindow.companiesTableColumnNames.length];
+        Statement statement = connection.createStatement();
+        ResultSet resultSet = statement.executeQuery("SELECT co.customer_id, co.name, co.fiscal_code, " +
+                "co.bank_account, co.hq_address, c.delivery_address, c.contact_number\n" +
+                "FROM company co JOIN customer c ON (c.id = co.customer_id);");
+
+        while (resultSet.next()) {
+            companiesData[index][0] = resultSet.getInt("customer_id");
+            companiesData[index][1] = resultSet.getString("name");
+            companiesData[index][2] = resultSet.getString("fiscal_code");
+            companiesData[index][3] = resultSet.getString("bank_account");
+            companiesData[index][4] = resultSet.getString("hq_address");
+            companiesData[index][5] = resultSet.getString("delivery_address");
+            companiesData[index++][6] = resultSet.getString("contact_number");
+        }
+
+        resultSet.close();
+        statement.close();
+        return companiesData;
+    }
+
     public Object[][] getProducts() throws CRMDBNotConnectedException, SQLException {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
-        Object[][] productsData = null;
+        int productsNo = getProductsNo();
+
+        if (productsNo <= 0)
+            return null;
+
+        int index = 0;
+        Object[][] productsData = new Object[productsNo][MainWindow.productsTableColumnNames.length];
         Statement statement = connection.createStatement();
-        ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) AS ResultsNo, " +
-                "CAST(NULL AS INT) AS ID, CAST(NULL AS TEXT) AS Name, " +
-                "CAST(NULL AS DOUBLE) AS Price, CAST(NULL AS INT) AS Stock " +
-                "FROM product UNION ALL SELECT CAST(NULL AS INT), * FROM product;"
-        );
+        ResultSet resultSet = statement.executeQuery("SELECT * FROM product;");
 
-        if (resultSet.next()) {
-            productsData = new Object[resultSet.getInt("ResultsNo")][4];
-
-            int index = 0;
-
-            while (resultSet.next()) {
-                productsData[index][0] = resultSet.getInt("ID");
-                productsData[index][1] = resultSet.getString("Name");
-                productsData[index][2] = resultSet.getDouble("Price");
-                productsData[index++][3] = resultSet.getInt("Stock");
-            }
+        while (resultSet.next()) {
+            productsData[index][0] = resultSet.getInt("ID");
+            productsData[index][1] = resultSet.getString("Name");
+            productsData[index][2] = resultSet.getDouble("Price");
+            productsData[index++][3] = resultSet.getInt("Stock");
         }
 
         resultSet.close();

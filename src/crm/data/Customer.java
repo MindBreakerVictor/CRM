@@ -8,6 +8,10 @@ public abstract class Customer {
 
     public Customer() { }
 
+    public Customer(String deliveryAddress, String contactNumber) {
+        this(0, deliveryAddress, contactNumber);
+    }
+
     public Customer(int id, String deliveryAddress, String contactNumber) {
         this.id = id;
         this.deliveryAddress = deliveryAddress;
