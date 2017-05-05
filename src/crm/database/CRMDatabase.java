@@ -281,6 +281,28 @@ public class CRMDatabase implements AutoCloseable {
         throw new InvalidProductException();
     }
 
+    public Object[] getProductByName(String productName) throws CRMDBNotConnectedException, SQLException, InvalidProductException {
+        if (connection == null || connection.isClosed())
+            throw new CRMDBNotConnectedException();
+
+        String selectedProduct = "SELECT * FROM `product` WHERE `name`=?;";
+        PreparedStatement statement = connection.prepareStatement(selectedProduct);
+
+        statement.setString(1, productName);
+        ResultSet resultSet = statement.executeQuery();
+
+        Object[] resultProduct = new Object[4];
+        resultProduct[0] = resultSet.getInt("ID");
+        resultProduct[1] = resultSet.getString("Name");
+        resultProduct[2] = resultSet.getDouble("Price");
+        resultProduct[3] = resultSet.getInt("Stock");
+
+        resultSet.close();
+        statement.close();
+
+        return resultProduct;
+    }
+
     /**
      * Insert an invoice in the database.
      * TODO: This should be done transactional.
@@ -562,5 +584,42 @@ public class CRMDatabase implements AutoCloseable {
         resultSet.close();
         statement.close();
         return productsData;
+    }
+
+    public Customer getCustomerById(Integer customerId) throws CRMDBNotConnectedException, SQLException {
+        if (connection == null || connection.isClosed())
+            throw new CRMDBNotConnectedException();
+
+        Customer customer = null;
+        String getIndividuals = "SELECT i.customer_id, i.first_name, i.last_name, c.delivery_address, c.contact_number\n" +
+                "FROM individual i JOIN customer c ON (c.id = i.customer_id)\n" +
+                "WHERE c.id = " + customerId.toString() + ";";
+        String getCompanies = "SELECT co.customer_id, co.name, co.fiscal_code, co.bank_account, co.hq_address, " +
+                "c.delivery_address, c.contact_number\n" +
+                "FROM company co JOIN customer c ON (c.id = co.customer_id)\n" +
+                "WHERE c.id = " + customerId.toString() + ";";
+
+        Statement statement = connection.createStatement();
+        ResultSet resultSet = statement.executeQuery(getIndividuals);
+
+        if (resultSet.next()) {
+            customer = new Individual(resultSet.getString("first_name"),
+                    resultSet.getString("last_name"), resultSet.getInt("customer_id"),
+                    resultSet.getString("delivery_address"), resultSet.getString("contact_number"));
+        }
+
+        resultSet.close();
+        resultSet = statement.executeQuery(getCompanies);
+
+        if (resultSet.next()) {
+            customer = new Company(resultSet.getString("name"),
+                    resultSet.getString("fiscal_code"), resultSet.getString("bank_account"),
+                    resultSet.getString("hq_address"), resultSet.getInt("customer_id"),
+                    resultSet.getString("delivery_address"), resultSet.getString("contact_number"));
+        }
+
+        resultSet.close();
+        statement.close();
+        return customer;
     }
 }

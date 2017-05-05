@@ -1,5 +1,6 @@
 package crm;
 
+import crm.database.CRMDBNotConnectedException;
 import crm.database.CRMDatabase;
 import crm.gui.*;
 
@@ -13,6 +14,8 @@ public class Main {
             MainWindow mainWindow = new MainWindow(database);
         } catch (SQLException exception) {
             ErrorWindow errorWindow = new ErrorWindow(exception.getMessage(), true);
+        } catch (CRMDBNotConnectedException e) {
+            e.printStackTrace();
         }
     }
 }
