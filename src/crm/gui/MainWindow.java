@@ -19,7 +19,7 @@ import java.sql.SQLException;
 /**
  * TODO:
  * 1. Add changeListener in individuals, companies and products tables.
- * 2. Add input data checking for fields in individuals, companies and products fields.
+ * 2. Validate data for fields in individuals, companies and products fields.
  */
 
 public class MainWindow {
