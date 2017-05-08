@@ -8,17 +8,27 @@ import crm.database.CRMDBNotConnectedException;
 import crm.database.CRMDatabase;
 import crm.database.InvalidProductException;
 
+import java.util.List;
+import java.util.ArrayList;
+
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableModel;
-import java.awt.*;
+
+import java.awt.Dimension;
+import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.awt.event.InputMethodEvent;
-import java.awt.event.InputMethodListener;
+
 import java.sql.SQLException;
-import java.util.ArrayList;
+
+
+/**
+ * TODO:
+ * 1. Add changeListener in individuals, companies and products tables.
+ * 2. Add input data checking for fields in individuals, companies and products fields.
+ */
 
 public class MainWindow {
 
@@ -29,16 +39,10 @@ public class MainWindow {
     private JFrame frame;
     private JPanel mainPanel;
 
-    // Products tab
-    private JTextField productName;
-    private JTextField productPrice;
-    private JTextField productStock;
-    private JButton addProduct;
-    private JTable productsTable;
-    public static final Object[] productsTableColumnNames = { "ID", "Name", "Price", "Stock" };
+    // 1. Accounting tab
 
-    // Customers tab
-    // Individual sub tab
+    // a. Customers tab
+    // i. Individuals tab
     private JTextField individualFirstName;
     private JTextField individualLastName;
     private JTextField individualDeliveryAddress;
@@ -47,7 +51,7 @@ public class MainWindow {
     private JTable individualsTable;
     public static final Object[] individualsTableColumnNames = { "ID", "First Name", "Last Name",
             "Delivery Address", "Contact Number" };
-    // Companies sub tab
+    // ii. Companies tab
     private JTable companiesTable;
     private JTextField companyName;
     private JTextField companyFiscalCode;
@@ -56,41 +60,46 @@ public class MainWindow {
     private JTextField companyDeliveryAddress;
     private JTextField companyContactNumber;
     private JButton addCompany;
-    private JTabbedPane tabbedPane1;
-    private JTabbedPane tabbedPane2;
-    private JPanel checkProductPanel;
-    private JTextField textField1;
-    private JTextField textField2;
-    private JList list1;
-    private JPanel invoicePanel;
-    private JLabel labelCustomer;
-    private JTextField quantity;
-    private JLabel totalPriceLabel;
+    public static final Object[] companiesTableColumnNames = { "ID", "Name", "Fiscal Code", "Bank Account",
+            "Headquarters Address", "Delivery Address", "Contact Number" };
+
+    // b. Invoices tab
+
+    // 2. Deposit tab
+
+    // a. Products tab
+    private JTextField productName;
+    private JTextField productPrice;
+    private JTextField productStock;
+    private JButton addProduct;
+    private JTable productsTable;
+    public static final Object[] productsTableColumnNames = { "ID", "Name", "Price", "Stock" };
+
+    // b. Check Deposit tab
+
+    // c. Clear Deposit tab
+
+    // 3. New Invoice tab
     private JComboBox comboCustomers;
     private JComboBox comboProducts;
-    private JButton createInvoiceButton;
+    private JTextField quantity;
+    private JLabel totalPriceLabel;
     private JButton addProductButton;
-    private JTextField textField3;
-    private JComboBox comboBox1;
-    private JTextArea textArea1;
-    private JButton listAllInvoicesButton;
-    private JButton listCompaniesInvoicesButton;
-    private JButton listIndividualsInvoicesButton;
+    private JButton createInvoiceButton;
     private JTable invoiceProductsTable;
     private JLabel availability;
     private JLabel isInStockLabel;
     private JLabel disponibleQuantityLabel;
     private JButton checkByUIDButton;
     private JButton showDisplayButton;
-    public static final Object[] companiesTableColumnNames = { "ID", "Name", "Fiscal Code", "Bank Account",
-            "Headquarters Address", "Delivery Address", "Contact Number" };
     public static final Object[] invoiceProductsTableColumnsNames = {"ID", "Name", "Price", "Quantity"};
-    private ArrayList<Product> invoiceProducts = new ArrayList<Product>();
+    private List<Product> invoiceProducts = new ArrayList<>();
 
     // Invoices tab
 
     {
         frame = new JFrame("Customer Relationship Management");
+        invoiceProducts = new ArrayList<>();
     }
 
     public MainWindow(CRMDatabase database) throws SQLException, CRMDBNotConnectedException {
@@ -270,8 +279,9 @@ public class MainWindow {
 
         addIndividual.addActionListener(e -> {
             try {
-                this.database.insertCustomer(new Individual(individualFirstName.getText(), individualLastName.getText(),
+                database.insertCustomer(new Individual(individualFirstName.getText(), individualLastName.getText(),
                         individualDeliveryAddress.getText(), individualContactNumber.getText()));
+                resetIndividualsTextFields();
                 updateIndividualsTable();
             } catch (CRMDBNotConnectedException exception) {
                 new ErrorWindow("SQLite3 database disconnected.");
@@ -286,7 +296,6 @@ public class MainWindow {
     private void updateIndividualsTable() {
         try {
             Object[][] data = database.getIndividuals();
-
             DefaultTableModel tableModel = data == null ? new DefaultTableModel(individualsTableColumnNames, 0) :
                     new DefaultTableModel(data, individualsTableColumnNames);
 
@@ -300,6 +309,13 @@ public class MainWindow {
         }
     }
 
+    private void resetIndividualsTextFields() {
+        individualFirstName.setText("");
+        individualLastName.setText("");
+        individualDeliveryAddress.setText("");
+        individualContactNumber.setText("");
+    }
+
     private void initiateCompaniesTab() {
         updateCompaniesTable();
 
@@ -308,6 +324,7 @@ public class MainWindow {
                 this.database.insertCustomer(new Company(companyName.getText(), companyFiscalCode.getText(),
                         companyBankAccount.getText(), companyHQAddress.getText(),
                         companyDeliveryAddress.getText(), companyContactNumber.getText()));
+                resetCompaniesTextFields();
                 updateCompaniesTable();
             } catch (CRMDBNotConnectedException exception) {
                 new ErrorWindow("SQLite3 database disconnected.");
@@ -322,7 +339,6 @@ public class MainWindow {
     private void updateCompaniesTable() {
         try {
             Object[][] data = database.getCompanies();
-
             DefaultTableModel tableModel = data == null ? new DefaultTableModel(companiesTableColumnNames, 0) :
                     new DefaultTableModel(data, companiesTableColumnNames);
 
@@ -334,6 +350,15 @@ public class MainWindow {
             new ErrorWindow("SQL error: " + exception.getMessage());
             System.out.println("SQL error: " + exception.getMessage());
         }
+    }
+
+    private void resetCompaniesTextFields() {
+        companyName.setText("");
+        companyFiscalCode.setText("");
+        companyBankAccount.setText("");
+        companyHQAddress.setText("");
+        companyDeliveryAddress.setText("");
+        companyContactNumber.setText("");
     }
 
     private void initiateProductsTab() {
@@ -372,22 +397,21 @@ public class MainWindow {
     }
 
     private void populateCustomersComboBox() throws SQLException, CRMDBNotConnectedException {
-        ArrayList<Customer> customers = (ArrayList<Customer>) database.getCustomers();
-        comboCustomers.addItemListener(itemEvent -> {
+        java.util.List<Customer> customers = database.getCustomers();
 
-        });
-        for (Customer c: customers) {
+        comboCustomers.addItemListener(itemEvent -> { });
+
+        for (Customer c : customers)
             comboCustomers.addItem(c);
-        }
     }
 
     private void populateProductsComboBox() throws SQLException, CRMDBNotConnectedException {
         Object[][] products = database.getProducts();
-        comboCustomers.addItemListener(itemEvent -> {
 
-        });
-        for (Object[] p: products) {
-            comboProducts.addItem(p[1]);
-        }
+        comboCustomers.addItemListener(itemEvent -> { });
+
+        if (products != null)
+            for (Object[] p : products)
+                comboProducts.addItem(p[1]);
     }
 }
