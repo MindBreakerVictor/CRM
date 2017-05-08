@@ -621,7 +621,7 @@
           <grid id="51c2b" layout-manager="GridLayoutManager" row-count="6" column-count="5" same-size-horizontally="false" same-size-vertically="false" hgap="-1" vgap="-1">
             <margin top="0" left="0" bottom="0" right="0"/>
             <constraints>
-              <tabbedpane title="New Invoice"/>
+              <tabbedpane title="Invoice"/>
             </constraints>
             <properties/>
             <border type="none"/>
@@ -658,7 +658,7 @@
                   <text value="0"/>
                 </properties>
               </component>
-              <component id="7bac3" class="javax.swing.JComboBox" binding="comboCustomers">
+              <component id="7bac3" class="javax.swing.JComboBox" binding="customersDropDownList">
                 <constraints>
                   <grid row="0" column="1" row-span="1" col-span="1" vsize-policy="0" hsize-policy="2" anchor="8" fill="1" indent="0" use-parent-layout="false"/>
                 </constraints>
@@ -666,7 +666,7 @@
                   <model/>
                 </properties>
               </component>
-              <component id="d0035" class="javax.swing.JComboBox" binding="comboProducts">
+              <component id="d0035" class="javax.swing.JComboBox" binding="productsDropDownList">
                 <constraints>
                   <grid row="1" column="1" row-span="2" col-span="1" vsize-policy="0" hsize-policy="2" anchor="8" fill="1" indent="0" use-parent-layout="false"/>
                 </constraints>

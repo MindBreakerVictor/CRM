@@ -281,7 +281,8 @@ public class CRMDatabase implements AutoCloseable {
         throw new InvalidProductException();
     }
 
-    public Object[] getProductByName(String productName) throws CRMDBNotConnectedException, SQLException, InvalidProductException {
+    public Object[] getProductByName(String productName) throws CRMDBNotConnectedException,
+            SQLException, InvalidProductException {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 

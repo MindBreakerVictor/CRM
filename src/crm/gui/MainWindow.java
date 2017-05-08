@@ -1,12 +1,7 @@
 package crm.gui;
 
-import crm.data.Company;
-import crm.data.Customer;
-import crm.data.Individual;
-import crm.data.Product;
-import crm.database.CRMDBNotConnectedException;
-import crm.database.CRMDatabase;
-import crm.database.InvalidProductException;
+import crm.data.*;
+import crm.database.*;
 
 import java.util.List;
 import java.util.ArrayList;
@@ -18,11 +13,8 @@ import javax.swing.table.DefaultTableModel;
 
 import java.awt.Dimension;
 import java.awt.Toolkit;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 
 import java.sql.SQLException;
-
 
 /**
  * TODO:
@@ -79,9 +71,9 @@ public class MainWindow {
 
     // c. Clear Deposit tab
 
-    // 3. New Invoice tab
-    private JComboBox comboCustomers;
-    private JComboBox comboProducts;
+    // 3. Invoice tab
+    private JComboBox<Customer> customersDropDownList;
+    private JComboBox<Object> productsDropDownList;
     private JTextField quantity;
     private JLabel totalPriceLabel;
     private JButton addProductButton;
@@ -95,8 +87,6 @@ public class MainWindow {
     public static final Object[] invoiceProductsTableColumnsNames = {"ID", "Name", "Price", "Quantity"};
     private List<Product> invoiceProducts = new ArrayList<>();
 
-    // Invoices tab
-
     {
         frame = new JFrame("Customer Relationship Management");
         invoiceProducts = new ArrayList<>();
@@ -105,161 +95,15 @@ public class MainWindow {
     public MainWindow(CRMDatabase database) throws SQLException, CRMDBNotConnectedException {
         this.database = database;
 
-        initiateProductsTab();
-        initiateCustomersTab();
+        initiateAccountingTab();
+        initiateDepositTab();
+        initiateInvoiceTab();
         initiateMainFrame();
-        populateCustomersComboBox();
-        populateProductsComboBox();
-
-        quantity.getDocument().addDocumentListener(new DocumentListener() {
-            public void changedUpdate(DocumentEvent e) {
-                String regex = "\\d+";
-                if(quantity.getText().matches(regex) || quantity.getText().matches("")) {
-                    updateAvailability();
-                } else {
-                    availability.setText("Wrong input!");
-                }
-            }
-
-            public void removeUpdate(DocumentEvent e) {
-                String regex = "\\d+";
-                if(quantity.getText().matches(regex) || quantity.getText().matches("")) {
-                    updateAvailability();
-                } else {
-                    availability.setText("Wrong input!");
-                }
-            }
-
-            public void insertUpdate(DocumentEvent e) {
-                String regex = "\\d+";
-                if(quantity.getText().matches(regex) || quantity.getText().matches("")) {
-                    updateAvailability();
-                } else {
-                    availability.setText("Wrong input!");
-                }
-            }
-        });
-
-        addProductButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent actionEvent) {
-                if (availability.getText().matches("Available")) {
-                    try {
-                        Object[] o = database.getProductByName(comboProducts.getSelectedItem().toString());
-                        Product product = new Product(Integer.parseInt(String.valueOf(o[0])), o[1].toString(), Double.parseDouble(String.valueOf(o[2])),
-                                Integer.parseInt(String.valueOf(quantity.getText())));
-                        invoiceProducts.add(product);
-
-                        Object[][] ob  = new Object[invoiceProducts.size()][4];
-                        int index = 0;
-
-                        for (Product p: invoiceProducts) {
-                            ob[index][0] = p.getId();
-                            ob[index][1] = p.getName();
-                            ob[index][2] = p.getPrice();
-                            ob[index][3] = p.getQuantity();
-                            index++;
-                        }
-
-                        DefaultTableModel model = ob == null ? new DefaultTableModel(invoiceProductsTableColumnsNames, 0) :
-                                new DefaultTableModel(ob, invoiceProductsTableColumnsNames);
-                        invoiceProductsTable.setModel(model);
-
-                        Double price = Double.parseDouble(totalPriceLabel.getText()) + (Double.parseDouble(String.valueOf(o[2])) * Double.parseDouble(quantity.getText()));
-                        totalPriceLabel.setText(String.valueOf(price));
-
-                    } catch (CRMDBNotConnectedException exception) {
-                        new ErrorWindow("SQLite3 database disconnected.");
-                        System.out.println("SQLite3 database disconnected.");
-                    } catch (SQLException exception) {
-                        new ErrorWindow("SQL error: " + exception.getMessage());
-                        System.out.println("SQL error: " + exception.getMessage());
-                    } catch (InvalidProductException e) {
-                        e.printStackTrace();
-                    }
-                }
-            }
-        });
-
-        createInvoiceButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent actionEvent) {
-                String customerDetails = comboCustomers.getSelectedItem().toString();
-                Integer customerId = Integer.parseInt(customerDetails.substring(0, customerDetails.indexOf(',')));
-                try {
-                    Customer invoiceCustomer = database.getCustomerById(customerId);
-
-                    ArrayList<Object[]>  invoiceProducts = new ArrayList<>();
-                    for (int count = 0; count < invoiceProductsTable.getRowCount(); count++){
-                        Object[] o = new Object[4];
-                        o[0] = invoiceProductsTable.getValueAt(count, 0);
-                        o[1] = invoiceProductsTable.getValueAt(count, 1);
-                        o[2] = invoiceProductsTable.getValueAt(count, 2);
-                        o[3] = invoiceProductsTable.getValueAt(count, 3);
-                        invoiceProducts.add(o);
-                    }
-
-                    //TODO Create an invoice in database
-
-                    System.out.println("Invoice created");
-
-                } catch (CRMDBNotConnectedException e) {
-                    e.printStackTrace();
-                } catch (SQLException e) {
-                    e.printStackTrace();
-                }
-            }
-        });
     }
 
-    private void updateAvailability() {
-        try {
-            Object[] product = database.getProductByName((String)comboProducts.getSelectedItem());
-            if (quantity.getText().matches("")) {
-                availability.setText("Check availablity");
-            } else {
-                if (Integer.parseInt(quantity.getText()) > (Integer) product[3]) {
-                    availability.setText("Unavailable");
-                } else {
-                    availability.setText("Available");
-                }
-            }
-        } catch (CRMDBNotConnectedException e) {
-            e.printStackTrace();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        } catch (InvalidProductException e) {
-            e.printStackTrace();
-        }
-    }
-
-        /*
-        quantity.addInputMethodListener(new InputMethodListener() {
-            @Override
-            public void inputMethodTextChanged(InputMethodEvent inputMethodEvent) {
-                try {
-                    Object[] product = database.getProductByName((String)comboProducts.getItemAt(0));
-                    if (Integer.parseInt(quantity.getText()) > (Integer)product[3] ) {
-                        availability.setText("Unavailable");
-                    } else {
-                        availability.setText("Available");
-                    }
-                } catch (CRMDBNotConnectedException e) {
-                    e.printStackTrace();
-                } catch (SQLException e) {
-                    e.printStackTrace();
-                } catch (InvalidProductException e) {
-                    e.printStackTrace();
-                }
-
-            }
-
-            @Override
-            public void caretPositionChanged(InputMethodEvent inputMethodEvent) {
-
-            }
-        }); */
-
+    /**
+     * Initiate main window.
+     */
     private void initiateMainFrame() {
         Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
         frame.setBounds(screenSize.width / 2 - screenSize.width / 4, screenSize.height / 2 - screenSize.height / 4,
@@ -269,11 +113,25 @@ public class MainWindow {
         frame.setVisible(true);
     }
 
+    /**
+     * Initiate Accounting tab.
+     */
+    private void initiateAccountingTab() {
+        initiateCustomersTab();
+        initiateInvoicesTab();
+    }
+
+    /**
+     * Initiate Customers sub tab of Accounting tab.
+     */
     private void initiateCustomersTab() {
         initiateIndividualsTab();
         initiateCompaniesTab();
     }
 
+    /**
+     * Initiate Individuals sub tab of Customer sub tab of Accounting tab.
+     */
     private void initiateIndividualsTab() {
         updateIndividualsTable();
 
@@ -283,16 +141,18 @@ public class MainWindow {
                         individualDeliveryAddress.getText(), individualContactNumber.getText()));
                 resetIndividualsTextFields();
                 updateIndividualsTable();
+                updateCustomersDropDownList();
             } catch (CRMDBNotConnectedException exception) {
                 new ErrorWindow("SQLite3 database disconnected.");
-                System.out.println("SQLite3 database disconnected.");
             } catch (SQLException exception) {
                 new ErrorWindow("SQL error: " + exception.getMessage());
-                System.out.println("SQL error: " + exception.getMessage());
             }
         });
     }
 
+    /**
+     * Update individuals table from Individuals sub tab of Customer sub tab of Accounting tab.
+     */
     private void updateIndividualsTable() {
         try {
             Object[][] data = database.getIndividuals();
@@ -302,13 +162,15 @@ public class MainWindow {
             individualsTable.setModel(tableModel);
         } catch (CRMDBNotConnectedException exception) {
             new ErrorWindow("SQLite3 database disconnected.");
-            System.out.println("SQLite3 database disconnected.");
         } catch (SQLException exception) {
             new ErrorWindow("SQL error: " + exception.getMessage());
-            System.out.println("SQL error: " + exception.getMessage());
         }
     }
 
+    /**
+     * Reset text fields in Individuals sub tab of Customer sub tab of Accounting tab.
+     * This is used when inserting a new individual in the database to clear the text fields.
+     */
     private void resetIndividualsTextFields() {
         individualFirstName.setText("");
         individualLastName.setText("");
@@ -316,6 +178,9 @@ public class MainWindow {
         individualContactNumber.setText("");
     }
 
+    /**
+     * Initiate Companies sub tab of Customer sub tab of Accounting tab.
+     */
     private void initiateCompaniesTab() {
         updateCompaniesTable();
 
@@ -326,16 +191,18 @@ public class MainWindow {
                         companyDeliveryAddress.getText(), companyContactNumber.getText()));
                 resetCompaniesTextFields();
                 updateCompaniesTable();
+                updateCustomersDropDownList();
             } catch (CRMDBNotConnectedException exception) {
                 new ErrorWindow("SQLite3 database disconnected.");
-                System.out.println("SQLite3 database disconnected.");
             } catch (SQLException exception) {
                 new ErrorWindow("SQL error: " + exception.getMessage());
-                System.out.println("SQL error: " + exception.getMessage());
             }
         });
     }
 
+    /**
+     * Update companies table from Companies sub tab of Customer sub tab of Accounting tab.
+     */
     private void updateCompaniesTable() {
         try {
             Object[][] data = database.getCompanies();
@@ -345,13 +212,15 @@ public class MainWindow {
             companiesTable.setModel(tableModel);
         } catch (CRMDBNotConnectedException exception) {
             new ErrorWindow("SQLite3 database disconnected.");
-            System.out.println("SQLite3 database disconnected.");
         } catch (SQLException exception) {
             new ErrorWindow("SQL error: " + exception.getMessage());
-            System.out.println("SQL error: " + exception.getMessage());
         }
     }
 
+    /**
+     * Reset text fields in Companies sub tab of Customer sub tab of Accounting tab.
+     * This is used when inserting a new company in the database to clear the text fields.
+     */
     private void resetCompaniesTextFields() {
         companyName.setText("");
         companyFiscalCode.setText("");
@@ -361,6 +230,25 @@ public class MainWindow {
         companyContactNumber.setText("");
     }
 
+    /**
+     * Initiate the Invoices sub tab of Accounting tab.
+     */
+    private void initiateInvoicesTab() {
+        // TODO
+    }
+
+    /**
+     * Initiate the Deposit tab.
+     */
+    private void initiateDepositTab() {
+        initiateProductsTab();
+        initiateCheckDepositTab();
+        initiateClearDepositTab();
+    }
+
+    /**
+     * Initiate the Products sub tab of Deposit tab.
+     */
     private void initiateProductsTab() {
         updateProductsTable();
 
@@ -368,50 +256,206 @@ public class MainWindow {
             try {
                 this.database.insertProduct(productName.getText(), Double.parseDouble(productPrice.getText()),
                         Integer.parseInt(productStock.getText()));
+                resetProductsTextFields();
                 updateProductsTable();
+                updateProductsDropDownList();
             } catch (CRMDBNotConnectedException exception) {
                 new ErrorWindow("SQLite3 database disconnected.");
-                System.out.println("SQLite3 database disconnected.");
             } catch (SQLException exception) {
                 new ErrorWindow("SQL error: " + exception.getMessage());
-                System.out.println("SQL error: " + exception.getMessage());
             }
         });
     }
 
+    /**
+     * Update products table from Products sub tab of Deposit tab.
+     */
     private void updateProductsTable() {
         try {
             Object[][] data = database.getProducts();
-
             DefaultTableModel tableModel = data == null ? new DefaultTableModel(productsTableColumnNames, 0) :
                     new DefaultTableModel(data, productsTableColumnNames);
 
             productsTable.setModel(tableModel);
         } catch (CRMDBNotConnectedException exception) {
             new ErrorWindow("SQLite3 database disconnected.");
-            System.out.println("SQLite3 database disconnected.");
         } catch (SQLException exception) {
             new ErrorWindow("SQL error: " + exception.getMessage());
-            System.out.println("SQL error: " + exception.getMessage());
         }
     }
 
-    private void populateCustomersComboBox() throws SQLException, CRMDBNotConnectedException {
-        java.util.List<Customer> customers = database.getCustomers();
-
-        comboCustomers.addItemListener(itemEvent -> { });
-
-        for (Customer c : customers)
-            comboCustomers.addItem(c);
+    /**
+     * Reset text fields in Products sub tab of Deposit tab.
+     * This is used when inserting a new product in the database to clear the text fields.
+     */
+    private void resetProductsTextFields() {
+        productName.setText("");
+        productPrice.setText("");
+        productStock.setText("");
     }
 
-    private void populateProductsComboBox() throws SQLException, CRMDBNotConnectedException {
-        Object[][] products = database.getProducts();
+    /**
+     * Initiate Check Deposit sub tab of Deposit tab.
+     */
+    private void initiateCheckDepositTab() {
+        // TODO
+    }
 
-        comboCustomers.addItemListener(itemEvent -> { });
+    /**
+     * Initiate Clear Deposit sub tab of Deposit tab.
+     */
+    private void initiateClearDepositTab() {
+        // TODO
+    }
 
-        if (products != null)
-            for (Object[] p : products)
-                comboProducts.addItem(p[1]);
+    /**
+     * Initiate Invoice tab.
+     */
+    private void initiateInvoiceTab() {
+        updateCustomersDropDownList();
+        updateProductsDropDownList();
+
+        quantity.getDocument().addDocumentListener(new DocumentListener() {
+            private void update(DocumentEvent event) {
+                if (quantity.getText().matches("\\d+") || quantity.getText().matches(""))
+                    updateAvailability();
+                else
+                    availability.setText("Wrong input!");
+            }
+
+            public void changedUpdate(DocumentEvent event) { update(event); }
+
+            public void removeUpdate(DocumentEvent event) { update(event); }
+
+            public void insertUpdate(DocumentEvent event) { update(event); }
+        });
+
+        addProductButton.addActionListener(e -> {
+            if (availability.getText().matches("Available")) {
+                try {
+                    Object[] o = database.getProductByName(productsDropDownList.getSelectedItem().toString());
+                    Product product = new Product(Integer.parseInt(String.valueOf(o[0])),
+                            o[1].toString(), Double.parseDouble(String.valueOf(o[2])),
+                            Integer.parseInt(String.valueOf(quantity.getText())));
+
+                    invoiceProducts.add(product);
+
+                    int index = 0;
+                    Object[][] ob = new Object[invoiceProducts.size()][4];
+
+                    for (Product p : invoiceProducts) {
+                        ob[index][0] = p.getId();
+                        ob[index][1] = p.getName();
+                        ob[index][2] = p.getPrice();
+                        ob[index][3] = p.getQuantity();
+                        ++index;
+                    }
+
+                    DefaultTableModel model = new DefaultTableModel(ob, invoiceProductsTableColumnsNames);
+                    invoiceProductsTable.setModel(model);
+
+                    Double price = Double.parseDouble(totalPriceLabel.getText()) +
+                            (Double.parseDouble(String.valueOf(o[2])) * Double.parseDouble(quantity.getText()));
+                    totalPriceLabel.setText(String.valueOf(price));
+                } catch (CRMDBNotConnectedException exception) {
+                    new ErrorWindow("SQLite3 database disconnected.");
+                } catch (SQLException exception) {
+                    new ErrorWindow("SQL error: " + exception.getMessage());
+                } catch (InvalidProductException exception) {
+                    new ErrorWindow("Invalid product name passed to CRMDatabase::getProductByName at line " +
+                            Integer.toString(exception.getStackTrace()[0].getLineNumber()));
+                }
+            }
+        });
+
+        createInvoiceButton.addActionListener(e -> {
+            String customerDetails = customersDropDownList.getSelectedItem().toString();
+            Integer customerId = Integer.parseInt(customerDetails.substring(0, customerDetails.indexOf(',')));
+
+            try {
+                Customer invoiceCustomer = database.getCustomerById(customerId);
+
+                ArrayList<Object[]>  invoiceProducts = new ArrayList<>();
+
+                for (int count = 0; count < invoiceProductsTable.getRowCount(); count++) {
+                    Object[] o = new Object[4];
+                    o[0] = invoiceProductsTable.getValueAt(count, 0);
+                    o[1] = invoiceProductsTable.getValueAt(count, 1);
+                    o[2] = invoiceProductsTable.getValueAt(count, 2);
+                    o[3] = invoiceProductsTable.getValueAt(count, 3);
+                    invoiceProducts.add(o);
+                }
+
+                //TODO Create an invoice in database
+
+                System.out.println("Invoice created");
+            } catch (CRMDBNotConnectedException exception) {
+                new ErrorWindow("SQLite3 database disconnected.");
+            } catch (SQLException exception) {
+                new ErrorWindow("SQL error: " + exception.getMessage());
+            }
+        });
+    }
+
+    /**
+     * The fuck this does?
+     */
+    private void updateAvailability() {
+        try {
+            Object[] product = database.getProductByName((String) productsDropDownList.getSelectedItem());
+
+            if (!quantity.getText().matches("")) {
+                if (Integer.parseInt(quantity.getText()) > (Integer) product[3])
+                    availability.setText("Unavailable");
+                else
+                    availability.setText("Available");
+            }
+            else
+                availability.setText("Check availablity");
+        } catch (CRMDBNotConnectedException exception) {
+            new ErrorWindow("SQLite3 database disconnected.");
+        } catch (SQLException exception) {
+            new ErrorWindow("SQL error: " + exception.getMessage());
+        } catch (InvalidProductException exception) {
+            new ErrorWindow("Invalid product name passed to CRMDatabase::getProductByName at line " +
+                    Integer.toString(exception.getStackTrace()[0].getLineNumber()));
+        }
+    }
+
+    /**
+     * Update customer drop down list(combo box) from Invoice tab.
+     */
+    private void updateCustomersDropDownList() {
+        try {
+            List<Customer> customers = database.getCustomers();
+
+            customersDropDownList.removeAllItems();
+
+            for (Customer c : customers)
+                customersDropDownList.addItem(c);
+        } catch (CRMDBNotConnectedException exception) {
+            new ErrorWindow("SQLite3 database disconnected.");
+        } catch (SQLException exception) {
+            new ErrorWindow("SQL error: " + exception.getMessage());
+        }
+    }
+
+    /**
+     * Update products drop down list(combo box) from Invoice tab.
+     */
+    private void updateProductsDropDownList() {
+        try {
+            Object[][] products = database.getProducts();
+
+            productsDropDownList.removeAllItems();
+
+            if (products != null)
+                for (Object[] p : products)
+                    productsDropDownList.addItem(p[1]);
+        } catch (CRMDBNotConnectedException exception) {
+            new ErrorWindow("SQLite3 database disconnected.");
+        } catch (SQLException exception) {
+            new ErrorWindow("SQL error: " + exception.getMessage());
+        }
     }
 }
