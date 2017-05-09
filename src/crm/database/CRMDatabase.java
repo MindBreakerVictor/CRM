@@ -362,14 +362,14 @@ public class CRMDatabase implements AutoCloseable {
 
     /**
      * Update the price and stock of a product.
-     * @param productName must be a product name of a product that is already in the database.
+     * @param productId must be a valid product id from the database.
      * @param newPrice must be greater than.
      *                 If the value is zero or less, then the call is a no-op.
      * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
      * @throws SQLException
      * @throws InvalidProductException if the product is not already in the database.
      */
-    public void updateProductPrice(String productName, double newPrice) throws CRMDBNotConnectedException,
+    public void updateProductPrice(int productId, double newPrice) throws CRMDBNotConnectedException,
             SQLException, InvalidProductException {
         if (newPrice <= 0.0)
             return;
@@ -385,21 +385,36 @@ public class CRMDatabase implements AutoCloseable {
         PreparedStatement statement = connection.prepareStatement(updateProduct);
 
         statement.setDouble(1, newPrice);
-        statement.setInt(2, getProductId(productName));
+        statement.setInt(2, productId);
         statement.executeUpdate();
         statement.close();
     }
 
     /**
      * Update the price and stock of a product.
-     * @param productName must be a product name of a product that is already in the database.
+     * Wrapper for updateProductPrice(int, double).
+     * @param productName must be a valid product name from the database.
+     * @param newPrice must be greater than.
+     *                 If the value is zero or less, then the call is a no-op.
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException
+     * @throws InvalidProductException if the product is not already in the database.
+     */
+    public void updateProductPrice(String productName, double newPrice) throws CRMDBNotConnectedException,
+            SQLException, InvalidProductException {
+        updateProductPrice(getProductId(productName), newPrice);
+    }
+
+    /**
+     * Update the price and stock of a product.
+     * @param productId must be a valid product id from the database.
      * @param stock must be greater or equal with zero.
      *              If the value is less than zero, then the call is a no-op.
      * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
      * @throws SQLException
      * @throws InvalidProductException if the product is not already in the database.
      */
-    public void updateProductStock(String productName, int stock) throws CRMDBNotConnectedException,
+    public void updateProductStock(int productId, int stock) throws CRMDBNotConnectedException,
             SQLException, InvalidProductException {
         if (stock < 0)
             return;
@@ -415,9 +430,24 @@ public class CRMDatabase implements AutoCloseable {
         PreparedStatement statement = connection.prepareStatement(updateProduct);
 
         statement.setInt(1, stock);
-        statement.setInt(2, getProductId(productName));
+        statement.setInt(2, productId);
         statement.executeUpdate();
         statement.close();
+    }
+
+    /**
+     * Update the price and stock of a product.
+     * Wrapper for updateProductStock(int, int).
+     * @param productName must be a valid product name from the database.
+     * @param stock must be greater or equal with zero.
+     *              If the value is less than zero, then the call is a no-op.
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException
+     * @throws InvalidProductException if the product is not already in the database.
+     */
+    public void updateProductStock(String productName, int stock) throws CRMDBNotConnectedException,
+            SQLException, InvalidProductException {
+        updateProductStock(getProductId(productName), stock);
     }
 
     public List<Customer> getCustomers() throws CRMDBNotConnectedException, SQLException {
@@ -580,15 +610,61 @@ public class CRMDatabase implements AutoCloseable {
         ResultSet resultSet = statement.executeQuery("SELECT * FROM product;");
 
         while (resultSet.next()) {
-            productsData[index][0] = resultSet.getInt("ID");
-            productsData[index][1] = resultSet.getString("Name");
-            productsData[index][2] = resultSet.getDouble("Price");
-            productsData[index++][3] = resultSet.getInt("Stock");
+            productsData[index][0] = resultSet.getInt("id");
+            productsData[index][1] = resultSet.getString("name");
+            productsData[index][2] = resultSet.getDouble("price");
+            productsData[index++][3] = resultSet.getInt("stock");
         }
 
         resultSet.close();
         statement.close();
         return productsData;
+    }
+
+    /**
+     * Gets the stock of a product.
+     * @param productId must be a valid product id from the database.
+     * @return the stock of the product if the product id is valid.
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException
+     * @throws InvalidProductException if the product id is invalid.
+     */
+    public int getProductStock(int productId) throws CRMDBNotConnectedException,
+            SQLException, InvalidProductException {
+        if (connection == null || connection.isClosed())
+            throw new CRMDBNotConnectedException();
+
+        PreparedStatement statement = connection.prepareStatement("SELECT `stock` FROM `product` WHERE `id`=?");
+
+        statement.setInt(1, productId);
+
+        ResultSet resultSet = statement.executeQuery();
+        int stock = -1;
+
+        if (resultSet.next())
+            stock = resultSet.getInt("stock");
+
+        resultSet.close();
+        statement.close();
+
+        if (stock == -1)
+            throw new InvalidProductException();
+
+        return stock;
+    }
+
+    /**
+     * Gets the stock of a product.
+     * Wrapper for getProductStock(int).
+     * @param productName must be a valid product name from the database.
+     * @return the stock of the product if the product name is valid.
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException
+     * @throws InvalidProductException if the product name is invalid.
+     */
+    public int getProductStock(String productName) throws CRMDBNotConnectedException,
+            SQLException, InvalidProductException {
+        return getProductStock(getProductId(productName));
     }
 
     public Customer getCustomerById(Integer customerId) throws CRMDBNotConnectedException, SQLException {

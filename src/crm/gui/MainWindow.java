@@ -85,7 +85,7 @@ public class MainWindow {
     private JButton checkByUIDButton;
     private JButton showDisplayButton;
     public static final Object[] invoiceProductsTableColumnsNames = {"ID", "Name", "Price", "Quantity"};
-    private List<Product> invoiceProducts = new ArrayList<>();
+    private List<Product> invoiceProducts;
 
     {
         frame = new JFrame("Customer Relationship Management");
@@ -400,6 +400,22 @@ public class MainWindow {
                 new ErrorWindow("Attempted to insert an invoice with an invalid product.");
             }
 
+            // Update products stock
+            for (int i = 0; i < products.length; ++i) {
+                try {
+                    int productId = (Integer)products[i][0];
+                    database.updateProductStock(productId,
+                            database.getProductStock(productId) - (Integer)products[i][3]);
+                } catch (CRMDBNotConnectedException exception) {
+                    new ErrorWindow("SQLite3 database disconnected.");
+                } catch (SQLException exception) {
+                    new ErrorWindow("SQL error: " + exception.getMessage());
+                } catch (InvalidProductException exception) {
+                    new ErrorWindow("Attempted to update the stock of an invalid product.");
+                }
+            }
+
+            updateProductsTable();  // Update Deposit tab->Products sub-tab table also.
             invoiceProducts.clear();
             clearInvoiceProductsTable();
             totalPriceLabel.setText("0.0");
