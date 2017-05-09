@@ -314,10 +314,14 @@ public class MainWindow {
     private void initiateInvoiceTab() {
         updateCustomersDropDownList();
         updateProductsDropDownList();
+        updateAvailability();
+        clearInvoiceProductsTable();
+
+        productsDropDownList.addActionListener(e -> quantity.setText("1"));
 
         quantity.getDocument().addDocumentListener(new DocumentListener() {
             private void update(DocumentEvent event) {
-                if (quantity.getText().matches("\\d+") || quantity.getText().matches(""))
+                if (quantity.getText().matches("^[1-9][0-9]*$") || quantity.getText().matches(""))
                     updateAvailability();
                 else
                     availability.setText("Wrong input!");
@@ -331,87 +335,98 @@ public class MainWindow {
         });
 
         addProductButton.addActionListener(e -> {
-            if (availability.getText().matches("Available")) {
-                try {
-                    Object[] o = database.getProductByName(productsDropDownList.getSelectedItem().toString());
-                    Product product = new Product(Integer.parseInt(String.valueOf(o[0])),
-                            o[1].toString(), Double.parseDouble(String.valueOf(o[2])),
-                            Integer.parseInt(String.valueOf(quantity.getText())));
-
-                    invoiceProducts.add(product);
-
-                    int index = 0;
-                    Object[][] ob = new Object[invoiceProducts.size()][4];
-
-                    for (Product p : invoiceProducts) {
-                        ob[index][0] = p.getId();
-                        ob[index][1] = p.getName();
-                        ob[index][2] = p.getPrice();
-                        ob[index][3] = p.getQuantity();
-                        ++index;
-                    }
-
-                    DefaultTableModel model = new DefaultTableModel(ob, invoiceProductsTableColumnsNames);
-                    invoiceProductsTable.setModel(model);
-
-                    Double price = Double.parseDouble(totalPriceLabel.getText()) +
-                            (Double.parseDouble(String.valueOf(o[2])) * Double.parseDouble(quantity.getText()));
-                    totalPriceLabel.setText(String.valueOf(price));
-                } catch (CRMDBNotConnectedException exception) {
-                    new ErrorWindow("SQLite3 database disconnected.");
-                } catch (SQLException exception) {
-                    new ErrorWindow("SQL error: " + exception.getMessage());
-                } catch (InvalidProductException exception) {
-                    new ErrorWindow("Invalid product name passed to CRMDatabase::getProductByName at line " +
-                            Integer.toString(exception.getStackTrace()[0].getLineNumber()));
-                }
-            }
-        });
-
-        createInvoiceButton.addActionListener(e -> {
-            String customerDetails = customersDropDownList.getSelectedItem().toString();
-            Integer customerId = Integer.parseInt(customerDetails.substring(0, customerDetails.indexOf(',')));
+            if (!availability.getText().matches("Available"))
+                return;
 
             try {
-                Customer invoiceCustomer = database.getCustomerById(customerId);
+                Object[] productData = database.getProductByName(productsDropDownList.getSelectedItem().toString());
+                int productQuantity = Integer.parseInt(quantity.getText());
 
-                ArrayList<Object[]>  invoiceProducts = new ArrayList<>();
+                invoiceProducts.add(new Product((Integer)productData[0], (String)productData[1],
+                        (Double)productData[2], productQuantity));
+                productsDropDownList.removeItemAt(productsDropDownList.getSelectedIndex());
 
-                for (int count = 0; count < invoiceProductsTable.getRowCount(); count++) {
-                    Object[] o = new Object[4];
-                    o[0] = invoiceProductsTable.getValueAt(count, 0);
-                    o[1] = invoiceProductsTable.getValueAt(count, 1);
-                    o[2] = invoiceProductsTable.getValueAt(count, 2);
-                    o[3] = invoiceProductsTable.getValueAt(count, 3);
-                    invoiceProducts.add(o);
+                Object[][] ob = new Object[invoiceProducts.size()][4];
+
+                for (int i = 0; i < invoiceProducts.size(); ++i) {
+                    ob[i][0] = invoiceProducts.get(i).getId();
+                    ob[i][1] = invoiceProducts.get(i).getName();
+                    ob[i][2] = invoiceProducts.get(i).getPrice();
+                    ob[i][3] = invoiceProducts.get(i).getQuantity();
                 }
 
-                //TODO Create an invoice in database
+                DefaultTableModel model = new DefaultTableModel(ob, invoiceProductsTableColumnsNames);
+                invoiceProductsTable.setModel(model);
 
-                System.out.println("Invoice created");
+                Double price = Double.parseDouble(totalPriceLabel.getText()) + (Double)productData[2] * productQuantity;
+                totalPriceLabel.setText(price.toString());
             } catch (CRMDBNotConnectedException exception) {
                 new ErrorWindow("SQLite3 database disconnected.");
             } catch (SQLException exception) {
                 new ErrorWindow("SQL error: " + exception.getMessage());
+            } catch (InvalidProductException exception) {
+                new ErrorWindow("Invalid product name passed to CRMDatabase::getProductByName at line " +
+                        Integer.toString(exception.getStackTrace()[0].getLineNumber()));
             }
+        });
+
+        createInvoiceButton.addActionListener(e -> {
+            if (invoiceProductsTable.getRowCount() <= 0)
+                return;
+
+            String customerDetails = customersDropDownList.getSelectedItem().toString();
+            Integer customerId = Integer.parseInt(customerDetails.substring(0, customerDetails.indexOf(',')));
+
+            Object[][] products = new Object[invoiceProductsTable.getRowCount()][4];
+
+            for (int i = 0; i < invoiceProductsTable.getRowCount(); ++i) {
+                products[i][0] = invoiceProductsTable.getValueAt(i, 0);
+                products[i][1] = invoiceProductsTable.getValueAt(i, 1);
+                products[i][2] = invoiceProductsTable.getValueAt(i, 2);
+                products[i][3] = invoiceProductsTable.getValueAt(i, 3);
+            }
+
+            try {
+                database.insertInvoice(customerId, products);
+            } catch (CRMDBNotConnectedException exception) {
+                new ErrorWindow("SQLite3 database disconnected.");
+            } catch (SQLException exception) {
+                new ErrorWindow("SQL error: " + exception.getMessage());
+            } catch (InvalidCustomerException exception) {
+                new ErrorWindow("Attempted to insert an invoice with an invalid customer.");
+            } catch (EmptyInvoiceException exception) {
+                new ErrorWindow("Attempted to insert an invoice with no products.");
+            } catch (InvalidProductException exception) {
+                new ErrorWindow("Attempted to insert an invoice with an invalid product.");
+            }
+
+            invoiceProducts.clear();
+            clearInvoiceProductsTable();
+            totalPriceLabel.setText("0.0");
+            updateProductsDropDownList();
         });
     }
 
+    private void clearInvoiceProductsTable() {
+        invoiceProductsTable.setModel(new DefaultTableModel(invoiceProductsTableColumnsNames, 0));
+    }
+
     /**
-     * The fuck this does?
+     * Updates availability label.
      */
     private void updateAvailability() {
         try {
-            Object[] product = database.getProductByName((String) productsDropDownList.getSelectedItem());
+            Object[] product = database.getProductByName((String)productsDropDownList.getSelectedItem());
 
-            if (!quantity.getText().matches("")) {
-                if (Integer.parseInt(quantity.getText()) > (Integer) product[3])
-                    availability.setText("Unavailable");
-                else
-                    availability.setText("Available");
+            if (product == null || quantity.getText().equals("")) {
+                availability.setText("Check availability.");
+                return;
             }
+
+            if (Integer.parseInt(quantity.getText()) > (Integer)product[3])
+                availability.setText("Unavailable");
             else
-                availability.setText("Check availablity");
+                availability.setText("Available");
         } catch (CRMDBNotConnectedException exception) {
             new ErrorWindow("SQLite3 database disconnected.");
         } catch (SQLException exception) {

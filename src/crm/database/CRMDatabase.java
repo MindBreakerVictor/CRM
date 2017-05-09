@@ -230,9 +230,9 @@ public class CRMDatabase implements AutoCloseable {
 
     /**
      * Insert a product in the database.
-     * @param name
-     * @param price
-     * @param stock
+     * @param name is the name of the product. This is a unique key in the database.
+     * @param price is the price of the product.
+     * @param stock is the quantity of the product you have in stock.
      * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
      * @throws SQLException
      */
@@ -292,70 +292,74 @@ public class CRMDatabase implements AutoCloseable {
         statement.setString(1, productName);
         ResultSet resultSet = statement.executeQuery();
 
-        Object[] resultProduct = new Object[4];
-        resultProduct[0] = resultSet.getInt("ID");
-        resultProduct[1] = resultSet.getString("Name");
-        resultProduct[2] = resultSet.getDouble("Price");
-        resultProduct[3] = resultSet.getInt("Stock");
+        Object[] resultProduct = null;
+
+        if (resultSet.next()) {
+            resultProduct = new Object[4];
+            resultProduct[0] = resultSet.getInt("id");
+            resultProduct[1] = resultSet.getString("name");
+            resultProduct[2] = resultSet.getDouble("price");
+            resultProduct[3] = resultSet.getInt("stock");
+        }
 
         resultSet.close();
         statement.close();
-
         return resultProduct;
     }
 
     /**
      * Insert an invoice in the database.
      * TODO: This should be done transactional.
-     * @param invoice must be a valid invoice.
-     *                The customer object in invoice must be already in the database.
-     *                The products hash map of invoice cannot be empty.
-     *                The invoice's products must be already in the database.
-     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @param customerId must be a valid customer id from the database.
+     * @param products must be a matrix of n lines and 4 columns containing the products.
+     *                 The first column is the product id.
+     *                 The second column is the product name. This is not used.
+     *                 The third column is the product price.
+     *                 The fourth column is the product quantity.
      * @throws SQLException
      * @throws InvalidCustomerException if the customer specified in invoice object is not in the database.
      * @throws EmptyInvoiceException if the invoice doesn't have any products in it.
      * @throws InvalidProductException if the invoice contains a product that isn't in the database.
      */
-    /*
-    public void insertInvoice(Invoice invoice) throws CRMDBNotConnectedException, SQLException,
+    public void insertInvoice(int customerId, Object[][] products) throws CRMDBNotConnectedException, SQLException,
             InvalidCustomerException, EmptyInvoiceException, InvalidProductException {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
-        if (invoice.getProducts().isEmpty())
+        if (products.length <= 0)
             throw new EmptyInvoiceException();
 
-        int customerId = getCustomerId(invoice.getCustomer());
+        if (products[0].length != 4)
+            throw new InvalidProductException();
 
-        String insertInvoice = "INSERT INTO `invoice`(`customer_id`, `date`) VALUES (?, ?);";
+        String insertInvoice = "INSERT INTO `invoice`(`customer_id`, `date`) VALUES (?, CURRENT_TIMESTAMP);";
         String insertProduct = "INSERT INTO `invoice_product` VALUES (?, ?, ?, ?);";
-        PreparedStatement statement = connection.prepareStatement(insertInvoice);
+        PreparedStatement insertInvoiceStatement = connection.prepareStatement(insertInvoice);
 
-        statement.setInt(1, customerId);
-        statement.setString(2, invoice.getDate());
-        statement.executeUpdate();
+        insertInvoiceStatement.setInt(1, customerId);
+        insertInvoiceStatement.executeUpdate();
 
         int invoiceId = 0;
-        ResultSet resultSet = statement.getGeneratedKeys();
+        ResultSet resultSet = insertInvoiceStatement.getGeneratedKeys();
 
         if (resultSet.next())
             invoiceId = resultSet.getInt(1);
 
-        statement.close();
+        resultSet.close();
+        insertInvoiceStatement.close();
 
-        for (Map.Entry<Product, Integer> entry : invoice.getProducts().entrySet()) {
-            statement = connection.prepareStatement(insertProduct);
+        for (Object[] product : products) {
+            PreparedStatement insertInvoiceProductStatement = connection.prepareStatement(insertProduct);
 
-            statement.setInt(1, invoiceId);
-            statement.setInt(2, getProductId(entry.getKey()));
-            statement.setDouble(3, entry.getKey().getPrice());
-            statement.setInt(4, entry.getValue());
-            statement.executeUpdate();
-            statement.close();
+            insertInvoiceProductStatement.setInt(1, invoiceId);
+            insertInvoiceProductStatement.setInt(2, (Integer)product[0]);
+            insertInvoiceProductStatement.setDouble(3, (Double)product[2]);
+            insertInvoiceProductStatement.setInt(4, (Integer)product[3]);
+            insertInvoiceProductStatement.executeUpdate();
+            insertInvoiceProductStatement.close();
         }
     }
-*/
+
     /**
      * Update the price and stock of a product.
      * @param productName must be a product name of a product that is already in the database.

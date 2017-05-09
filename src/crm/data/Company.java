@@ -64,5 +64,7 @@ public class Company extends Customer {
     }
 
     @Override
-    public String toString() { return name + ", " + fiscalCode + ", " + bankAccount + ", " + getContactNumber(); }
+    public String toString() {
+        return getId() + ", " + name + ", " + fiscalCode + ", " + bankAccount + ", " + getContactNumber();
+    }
 }

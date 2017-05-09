@@ -41,6 +41,6 @@ public class Individual extends Customer {
 
     @Override
     public String toString() {
-        return firstName + ", " + lastName + ", " + getContactNumber();
+        return getId() + ", " + firstName + ", " + lastName + ", " + getContactNumber();
     }
 }
