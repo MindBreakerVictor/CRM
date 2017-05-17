@@ -4,9 +4,10 @@ import crm.data.*;
 import crm.gui.MainWindow;
 
 import java.io.File;
-import java.sql.*;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.ArrayList;
+
+import java.sql.*;
 
 public class CRMDatabase implements AutoCloseable {
 
@@ -69,7 +70,7 @@ public class CRMDatabase implements AutoCloseable {
 
     /**
      * Connects to SQLite3 database. If the database doesn't exists, it will create it.
-     * @throws SQLException
+     * @throws SQLException if a database access error occurs.
      */
     public void connect() throws SQLException {
         File crmProgramDataFolder = new File(System.getenv("PROGRAMDATA") + "\\CRM");
@@ -89,7 +90,7 @@ public class CRMDatabase implements AutoCloseable {
 
     /**
      * Disconnects from SQLite3 database.
-     * @throws SQLException
+     * @throws SQLException if a database access error occurs.
      */
     @Override
     public void close() throws SQLException {
@@ -105,7 +106,7 @@ public class CRMDatabase implements AutoCloseable {
      * TODO: Make the whole operation transactional, so we're able to rollback in case the second insert fails.
      * @param customer must be a valid Individual or Company object.
      * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
-     * @throws SQLException
+     * @throws SQLException if a database access error occurs.
      */
     public void insertCustomer(Customer customer) throws CRMDBNotConnectedException, SQLException {
         if (connection == null || connection.isClosed())
@@ -161,10 +162,11 @@ public class CRMDatabase implements AutoCloseable {
      * @param customer must be a valid customer in the database.
      * @return customer id if it is a valid customer in the database.
      * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
-     * @throws SQLException
+     * @throws SQLException if a database access error occurs.
      * @throws InvalidCustomerException if the customer is not in the database.
      */
-    public int getCustomerId(Customer customer) throws CRMDBNotConnectedException, SQLException, InvalidCustomerException {
+    public int getCustomerId(Customer customer) throws CRMDBNotConnectedException,
+            SQLException, InvalidCustomerException {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
@@ -234,7 +236,7 @@ public class CRMDatabase implements AutoCloseable {
      * @param price is the price of the product.
      * @param stock is the quantity of the product you have in stock.
      * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
-     * @throws SQLException
+     * @throws SQLException if a database access error occurs.
      */
     public void insertProduct(String name, double price, int stock) throws CRMDBNotConnectedException, SQLException {
         if (connection == null || connection.isClosed())
@@ -251,13 +253,14 @@ public class CRMDatabase implements AutoCloseable {
 
     /**
      * Gets the product id of a valid product from the database.
-     * @param productName must be a valid product in the database.
+     * @param productName must be a valid product name in the database.
      * @return product id if it is a valid product in the database.
      * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
-     * @throws SQLException
+     * @throws SQLException if a database access error occurs.
      * @throws InvalidProductException if the product is not in the database.
      */
-    public int getProductId(String productName) throws CRMDBNotConnectedException, SQLException, InvalidProductException {
+    public int getProductId(String productName) throws CRMDBNotConnectedException,
+            SQLException, InvalidProductException {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
@@ -281,6 +284,14 @@ public class CRMDatabase implements AutoCloseable {
         throw new InvalidProductException();
     }
 
+    /**
+     * Gets a product data using it's name.
+     * @param productName must be a valid product name in the database.
+     * @return an array of Object of size 4, containing the product data.
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException if a database access error occurs.
+     * @throws InvalidProductException if the product is not in the database.
+     */
     public Object[] getProductByName(String productName) throws CRMDBNotConnectedException,
             SQLException, InvalidProductException {
         if (connection == null || connection.isClosed())
@@ -304,6 +315,10 @@ public class CRMDatabase implements AutoCloseable {
 
         resultSet.close();
         statement.close();
+
+        if (resultProduct == null)
+            throw new InvalidProductException();
+
         return resultProduct;
     }
 
@@ -316,7 +331,8 @@ public class CRMDatabase implements AutoCloseable {
      *                 The second column is the product name. This is not used.
      *                 The third column is the product price.
      *                 The fourth column is the product quantity.
-     * @throws SQLException
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException if a database access error occurs.
      * @throws InvalidCustomerException if the customer specified in invoice object is not in the database.
      * @throws EmptyInvoiceException if the invoice doesn't have any products in it.
      * @throws InvalidProductException if the invoice contains a product that isn't in the database.
@@ -332,41 +348,60 @@ public class CRMDatabase implements AutoCloseable {
         if (products[0].length != 4)
             throw new InvalidProductException();
 
+        connection.setAutoCommit(false);
+
         String insertInvoice = "INSERT INTO `invoice`(`customer_id`, `date`) VALUES (?, CURRENT_TIMESTAMP);";
         String insertProduct = "INSERT INTO `invoice_product` VALUES (?, ?, ?, ?);";
         PreparedStatement insertInvoiceStatement = connection.prepareStatement(insertInvoice);
 
         insertInvoiceStatement.setInt(1, customerId);
-        insertInvoiceStatement.executeUpdate();
 
-        int invoiceId = 0;
-        ResultSet resultSet = insertInvoiceStatement.getGeneratedKeys();
+        try {
+            if (insertInvoiceStatement.executeUpdate() != 1)
+                throw new SQLException();
+        } catch (SQLException exception) {
+            connection.rollback();
+            connection.setAutoCommit(true);
+            throw new InvalidCustomerException();
+        }
 
-        if (resultSet.next())
-            invoiceId = resultSet.getInt(1);
+        try {
+            int invoiceId = 0;
+            ResultSet resultSet = insertInvoiceStatement.getGeneratedKeys();
 
-        resultSet.close();
-        insertInvoiceStatement.close();
+            if (resultSet.next())
+                invoiceId = resultSet.getInt(1);
 
-        for (Object[] product : products) {
-            PreparedStatement insertInvoiceProductStatement = connection.prepareStatement(insertProduct);
+            resultSet.close();
+            insertInvoiceStatement.close();
 
-            insertInvoiceProductStatement.setInt(1, invoiceId);
-            insertInvoiceProductStatement.setInt(2, (Integer)product[0]);
-            insertInvoiceProductStatement.setDouble(3, (Double)product[2]);
-            insertInvoiceProductStatement.setInt(4, (Integer)product[3]);
-            insertInvoiceProductStatement.executeUpdate();
-            insertInvoiceProductStatement.close();
+            for (Object[] product : products) {
+                PreparedStatement insertInvoiceProductStatement = connection.prepareStatement(insertProduct);
+
+                insertInvoiceProductStatement.setInt(1, invoiceId);
+                insertInvoiceProductStatement.setInt(2, (Integer) product[0]);
+                insertInvoiceProductStatement.setDouble(3, (Double) product[2]);
+                insertInvoiceProductStatement.setInt(4, (Integer) product[3]);
+                insertInvoiceProductStatement.executeUpdate();
+                insertInvoiceProductStatement.close();
+            }
+
+            connection.commit();
+            connection.setAutoCommit(true);
+        } catch (SQLException exception) {
+            connection.rollback();
+            connection.setAutoCommit(true);
+            throw exception;
         }
     }
 
     /**
-     * Update the price and stock of a product.
+     * Update the price of a product.
      * @param productId must be a valid product id from the database.
      * @param newPrice must be greater than.
      *                 If the value is zero or less, then the call is a no-op.
      * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
-     * @throws SQLException
+     * @throws SQLException if a database access error occurs.
      * @throws InvalidProductException if the product is not already in the database.
      */
     public void updateProductPrice(int productId, double newPrice) throws CRMDBNotConnectedException,
@@ -377,10 +412,9 @@ public class CRMDatabase implements AutoCloseable {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
-        /*
-         * We can also do the lookup by name, but we use id to
-         * throw InvalidProductException if the product is not in the database.
-         */
+        if (!isValidProduct(productId))
+            throw new InvalidProductException();
+
         String updateProduct = "UPDATE `product` SET `price`=? WHERE `id`=?;";
         PreparedStatement statement = connection.prepareStatement(updateProduct);
 
@@ -391,13 +425,13 @@ public class CRMDatabase implements AutoCloseable {
     }
 
     /**
-     * Update the price and stock of a product.
+     * Update the price of a product.
      * Wrapper for updateProductPrice(int, double).
      * @param productName must be a valid product name from the database.
      * @param newPrice must be greater than.
      *                 If the value is zero or less, then the call is a no-op.
      * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
-     * @throws SQLException
+     * @throws SQLException if a database access error occurs.
      * @throws InvalidProductException if the product is not already in the database.
      */
     public void updateProductPrice(String productName, double newPrice) throws CRMDBNotConnectedException,
@@ -406,12 +440,12 @@ public class CRMDatabase implements AutoCloseable {
     }
 
     /**
-     * Update the price and stock of a product.
+     * Update the stock of a product.
      * @param productId must be a valid product id from the database.
      * @param stock must be greater or equal with zero.
      *              If the value is less than zero, then the call is a no-op.
      * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
-     * @throws SQLException
+     * @throws SQLException if a database access error occurs.
      * @throws InvalidProductException if the product is not already in the database.
      */
     public void updateProductStock(int productId, int stock) throws CRMDBNotConnectedException,
@@ -422,10 +456,9 @@ public class CRMDatabase implements AutoCloseable {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
-        /*
-         * We can also do the lookup by name, but we use id to
-         * throw InvalidProductException if the product is not in the database.
-         */
+        if (!isValidProduct(productId))
+            throw new InvalidProductException();
+
         String updateProduct = "UPDATE `product` SET `stock`=? WHERE `id`=?;";
         PreparedStatement statement = connection.prepareStatement(updateProduct);
 
@@ -436,13 +469,13 @@ public class CRMDatabase implements AutoCloseable {
     }
 
     /**
-     * Update the price and stock of a product.
+     * Update the stock of a product.
      * Wrapper for updateProductStock(int, int).
      * @param productName must be a valid product name from the database.
      * @param stock must be greater or equal with zero.
      *              If the value is less than zero, then the call is a no-op.
      * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
-     * @throws SQLException
+     * @throws SQLException if a database access error occurs.
      * @throws InvalidProductException if the product is not already in the database.
      */
     public void updateProductStock(String productName, int stock) throws CRMDBNotConnectedException,
@@ -450,6 +483,12 @@ public class CRMDatabase implements AutoCloseable {
         updateProductStock(getProductId(productName), stock);
     }
 
+    /**
+     * Gets all the customers.
+     * @return an ArrayList containing all the customers.
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException if a database access error occurs.
+     */
     public List<Customer> getCustomers() throws CRMDBNotConnectedException, SQLException {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
@@ -470,7 +509,9 @@ public class CRMDatabase implements AutoCloseable {
                     resultSet.getString("delivery_address"), resultSet.getString("contact_number")));
 
         resultSet.close();
+        statement.close();
 
+        statement = connection.createStatement();
         resultSet = statement.executeQuery(getCompanies);
 
         while (resultSet.next())
@@ -484,6 +525,12 @@ public class CRMDatabase implements AutoCloseable {
         return customers;
     }
 
+    /**
+     * Gets the number of individuals.
+     * @return the number of individuals in the database.
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException if a database access error occurs.
+     */
     public int getIndividualsNo() throws CRMDBNotConnectedException, SQLException {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
@@ -501,6 +548,12 @@ public class CRMDatabase implements AutoCloseable {
         return individualsNo;
     }
 
+    /**
+     * Gets the number of companies.
+     * @return the number of companies in the database.
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException if a database access error occurs.
+     */
     public int getCompaniesNo() throws CRMDBNotConnectedException, SQLException {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
@@ -518,6 +571,12 @@ public class CRMDatabase implements AutoCloseable {
         return companiesNo;
     }
 
+    /**
+     * Gets the number of products.
+     * @return the number of products in the database.
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException if a database access error occurs.
+     */
     public int getProductsNo() throws CRMDBNotConnectedException, SQLException {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
@@ -535,6 +594,12 @@ public class CRMDatabase implements AutoCloseable {
         return productsNo;
     }
 
+    /**
+     * Gets all the individuals data.
+     * @return a two dimensional array of Object, containing the data for each individual on a row.
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException if a database access error occurs.
+     */
     public Object[][] getIndividuals() throws CRMDBNotConnectedException, SQLException {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
@@ -548,8 +613,7 @@ public class CRMDatabase implements AutoCloseable {
         Object[][] individualsData = new Object[individualsNo][MainWindow.individualsTableColumnNames.length];
         Statement statement = connection.createStatement();
         ResultSet resultSet = statement.executeQuery("SELECT i.customer_id, i.first_name, i.last_name, " +
-                "c.delivery_address, c.contact_number\n" +
-                "FROM individual i JOIN customer c ON (c.id = i.customer_id);");
+                "c.delivery_address, c.contact_number FROM individual i JOIN customer c ON (c.id = i.customer_id);");
 
         while (resultSet.next()) {
             individualsData[index][0] = resultSet.getInt("customer_id");
@@ -564,6 +628,12 @@ public class CRMDatabase implements AutoCloseable {
         return individualsData;
     }
 
+    /**
+     * Gets all the companies data.
+     * @return a two dimensional array of Object, containing the data for each company on a row.
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException if a database access error occurs.
+     */
     public Object[][] getCompanies() throws CRMDBNotConnectedException, SQLException {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
@@ -577,7 +647,7 @@ public class CRMDatabase implements AutoCloseable {
         Object[][] companiesData = new Object[companiesNo][MainWindow.companiesTableColumnNames.length];
         Statement statement = connection.createStatement();
         ResultSet resultSet = statement.executeQuery("SELECT co.customer_id, co.name, co.fiscal_code, " +
-                "co.bank_account, co.hq_address, c.delivery_address, c.contact_number\n" +
+                "co.bank_account, co.hq_address, c.delivery_address, c.contact_number " +
                 "FROM company co JOIN customer c ON (c.id = co.customer_id);");
 
         while (resultSet.next()) {
@@ -595,6 +665,12 @@ public class CRMDatabase implements AutoCloseable {
         return companiesData;
     }
 
+    /**
+     * Gets all the products data.
+     * @return a two dimensional array of Object, containing the data for each product on a row.
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException if a database access error occurs.
+     */
     public Object[][] getProducts() throws CRMDBNotConnectedException, SQLException {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
@@ -626,7 +702,7 @@ public class CRMDatabase implements AutoCloseable {
      * @param productId must be a valid product id from the database.
      * @return the stock of the product if the product id is valid.
      * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
-     * @throws SQLException
+     * @throws SQLException if a database access error occurs.
      * @throws InvalidProductException if the product id is invalid.
      */
     public int getProductStock(int productId) throws CRMDBNotConnectedException,
@@ -667,40 +743,69 @@ public class CRMDatabase implements AutoCloseable {
         return getProductStock(getProductId(productName));
     }
 
-    public Customer getCustomerById(Integer customerId) throws CRMDBNotConnectedException, SQLException {
+    /**
+     * Checks whether a product id is valid or not.
+     * @return true if the product id is in the database.
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException if a database access error occurs.
+     */
+    public boolean isValidProduct(int productId) throws CRMDBNotConnectedException, SQLException {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
-        Customer customer = null;
-        String getIndividuals = "SELECT i.customer_id, i.first_name, i.last_name, c.delivery_address, c.contact_number\n" +
-                "FROM individual i JOIN customer c ON (c.id = i.customer_id)\n" +
-                "WHERE c.id = " + customerId.toString() + ";";
-        String getCompanies = "SELECT co.customer_id, co.name, co.fiscal_code, co.bank_account, co.hq_address, " +
-                "c.delivery_address, c.contact_number\n" +
-                "FROM company co JOIN customer c ON (c.id = co.customer_id)\n" +
-                "WHERE c.id = " + customerId.toString() + ";";
+        PreparedStatement statement = connection.prepareStatement("SELECT * FROM `product` WHERE `id`=?;");
 
-        Statement statement = connection.createStatement();
-        ResultSet resultSet = statement.executeQuery(getIndividuals);
+        statement.setInt(1, productId);
 
-        if (resultSet.next()) {
-            customer = new Individual(resultSet.getString("first_name"),
-                    resultSet.getString("last_name"), resultSet.getInt("customer_id"),
-                    resultSet.getString("delivery_address"), resultSet.getString("contact_number"));
-        }
-
-        resultSet.close();
-        resultSet = statement.executeQuery(getCompanies);
-
-        if (resultSet.next()) {
-            customer = new Company(resultSet.getString("name"),
-                    resultSet.getString("fiscal_code"), resultSet.getString("bank_account"),
-                    resultSet.getString("hq_address"), resultSet.getInt("customer_id"),
-                    resultSet.getString("delivery_address"), resultSet.getString("contact_number"));
-        }
+        ResultSet resultSet = statement.executeQuery();
+        boolean isValidProduct = resultSet.next();
 
         resultSet.close();
         statement.close();
-        return customer;
+        return isValidProduct;
+    }
+
+    /**
+     * Checks whether a customer id is valid or not.
+     * @return true if the customer id is in the database.
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException if a database access error occurs.
+     */
+    public boolean isValidCustomer(int customerId) throws CRMDBNotConnectedException, SQLException {
+        if (connection == null || connection.isClosed())
+            throw new CRMDBNotConnectedException();
+
+        PreparedStatement statement = connection.prepareStatement("SELECT * FROM `customer` WHERE `id`=?;");
+
+        statement.setInt(1, customerId);
+
+        ResultSet resultSet = statement.executeQuery();
+        boolean isValidCustomer = resultSet.next();
+
+        resultSet.close();
+        statement.close();
+        return isValidCustomer;
+    }
+
+    /**
+     * Checks whether an invoice id is valid or not.
+     * @return true if the invoice id is in the database.
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException if a database access error occurs.
+     */
+    public boolean isValidInvoice(int invoiceId) throws CRMDBNotConnectedException, SQLException {
+        if (connection == null || connection.isClosed())
+            throw new CRMDBNotConnectedException();
+
+        PreparedStatement statement = connection.prepareStatement("SELECT * FROM `invoice` WHERE `id`=?;");
+
+        statement.setInt(1, invoiceId);
+
+        ResultSet resultSet = statement.executeQuery();
+        boolean isValidInvoice = resultSet.next();
+
+        resultSet.close();
+        statement.close();
+        return isValidInvoice;
     }
 }

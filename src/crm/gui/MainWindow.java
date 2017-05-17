@@ -80,10 +80,7 @@ public class MainWindow {
     private JButton createInvoiceButton;
     private JTable invoiceProductsTable;
     private JLabel availability;
-    private JLabel isInStockLabel;
-    private JLabel disponibleQuantityLabel;
-    private JButton checkByUIDButton;
-    private JButton showDisplayButton;
+    private JButton searchProductButton;
     public static final Object[] invoiceProductsTableColumnsNames = {"ID", "Name", "Price", "Quantity"};
     private List<Product> invoiceProducts;
 
@@ -317,7 +314,10 @@ public class MainWindow {
         updateAvailability();
         clearInvoiceProductsTable();
 
-        productsDropDownList.addActionListener(e -> quantity.setText("1"));
+        productsDropDownList.addActionListener(e -> {
+            if (productsDropDownList.getItemCount() > 0)
+                quantity.setText("1");
+        });
 
         quantity.getDocument().addDocumentListener(new DocumentListener() {
             private void update(DocumentEvent event) {

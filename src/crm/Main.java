@@ -1,21 +1,19 @@
 package crm;
 
-import crm.database.CRMDBNotConnectedException;
-import crm.database.CRMDatabase;
 import crm.gui.*;
-
+import crm.database.CRMDatabase;
+import crm.database.CRMDBNotConnectedException;
 import java.sql.SQLException;
 
 public class Main {
 
     public static void main(String[] args) {
         try {
-            CRMDatabase database = new CRMDatabase();
-            MainWindow mainWindow = new MainWindow(database);
+            new MainWindow(new CRMDatabase());
+        } catch (CRMDBNotConnectedException exception) {
+            new ErrorWindow("SQLite3 database not connected.");
         } catch (SQLException exception) {
-            ErrorWindow errorWindow = new ErrorWindow(exception.getMessage(), true);
-        } catch (CRMDBNotConnectedException e) {
-            e.printStackTrace();
+            new ErrorWindow(exception.getMessage(), true);
         }
     }
 }
