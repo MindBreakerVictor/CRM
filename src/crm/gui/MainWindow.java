@@ -9,7 +9,9 @@ import java.util.ArrayList;
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.event.TableModelEvent;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableModel;
 
 import java.awt.Dimension;
 import java.awt.Toolkit;
@@ -131,6 +133,7 @@ public class MainWindow {
      */
     private void initiateIndividualsTab() {
         updateIndividualsTable();
+        individualsTable.getTableHeader().setReorderingAllowed(false);
 
         addIndividual.addActionListener(e -> {
             try {
@@ -145,6 +148,30 @@ public class MainWindow {
                 new ErrorWindow("SQL error: " + exception.getMessage());
             }
         });
+
+        individualsTable.getModel().addTableModelListener(e -> {
+            if (e.getType() == TableModelEvent.UPDATE) {
+                int row = e.getFirstRow();
+                TableModel tableModel = (TableModel)e.getSource();
+                int id = (Integer)tableModel.getValueAt(row, 0);
+                String firstName = (String)tableModel.getValueAt(row, 1);
+                String lastName = (String)tableModel.getValueAt(row, 2);
+                String deliveryAddress = (String)tableModel.getValueAt(row, 3);
+                String contactNumber = (String)tableModel.getValueAt(row, 4);
+                Individual individual = new Individual(firstName, lastName, id, deliveryAddress, contactNumber);
+
+                try {
+                    database.updateCustomer(individual);
+                } catch (CRMDBNotConnectedException exception) {
+                    new ErrorWindow("SQLite3 database disconnected.");
+                } catch (SQLException exception) {
+                    new ErrorWindow("SQL error: " + exception.getMessage());
+                } catch (InvalidCustomerException exception) {
+                    new ErrorWindow("Invalid customer id passed to CRMDatabase::updateCustomer at line " +
+                            Integer.toString(exception.getStackTrace()[0].getLineNumber()));
+                }
+            }
+        });
     }
 
     /**
@@ -154,7 +181,9 @@ public class MainWindow {
         try {
             Object[][] data = database.getIndividuals();
             DefaultTableModel tableModel = data == null ? new DefaultTableModel(individualsTableColumnNames, 0) :
-                    new DefaultTableModel(data, individualsTableColumnNames);
+                    new DefaultTableModel(data, individualsTableColumnNames) {
+                        @Override public boolean isCellEditable(int row, int column) { return column != 0; }
+                    };
 
             individualsTable.setModel(tableModel);
         } catch (CRMDBNotConnectedException exception) {
@@ -180,6 +209,7 @@ public class MainWindow {
      */
     private void initiateCompaniesTab() {
         updateCompaniesTable();
+        companiesTable.getTableHeader().setReorderingAllowed(false);
 
         addCompany.addActionListener(e -> {
             try {
@@ -195,6 +225,32 @@ public class MainWindow {
                 new ErrorWindow("SQL error: " + exception.getMessage());
             }
         });
+
+        companiesTable.getModel().addTableModelListener(e -> {
+            if (e.getType() == TableModelEvent.UPDATE) {
+                int row = e.getFirstRow();
+                TableModel tableModel = (TableModel)e.getSource();
+                int id = (Integer)tableModel.getValueAt(row, 0);
+                String name = (String)tableModel.getValueAt(row, 1);
+                String fiscalCode = (String)tableModel.getValueAt(row, 2);
+                String bankAccount = (String)tableModel.getValueAt(row, 3);
+                String hqAddress = (String)tableModel.getValueAt(row, 4);
+                String deliveryAddress = (String)tableModel.getValueAt(row, 5);
+                String contactNumber = (String)tableModel.getValueAt(row, 6);
+                Company company = new Company(name, fiscalCode, bankAccount, hqAddress, id, deliveryAddress, contactNumber);
+
+                try {
+                    database.updateCustomer(company);
+                } catch (CRMDBNotConnectedException exception) {
+                    new ErrorWindow("SQLite3 database disconnected.");
+                } catch (SQLException exception) {
+                    new ErrorWindow("SQL error: " + exception.getMessage());
+                } catch (InvalidCustomerException exception) {
+                    new ErrorWindow("Invalid customer id passed to CRMDatabase::updateCustomer at line " +
+                            Integer.toString(exception.getStackTrace()[0].getLineNumber()));
+                }
+            }
+        });
     }
 
     /**
@@ -204,7 +260,9 @@ public class MainWindow {
         try {
             Object[][] data = database.getCompanies();
             DefaultTableModel tableModel = data == null ? new DefaultTableModel(companiesTableColumnNames, 0) :
-                    new DefaultTableModel(data, companiesTableColumnNames);
+                    new DefaultTableModel(data, companiesTableColumnNames) {
+                        @Override public boolean isCellEditable(int row, int column) { return column != 0; }
+                    };
 
             companiesTable.setModel(tableModel);
         } catch (CRMDBNotConnectedException exception) {
@@ -248,6 +306,7 @@ public class MainWindow {
      */
     private void initiateProductsTab() {
         updateProductsTable();
+        productsTable.getTableHeader().setReorderingAllowed(false);
 
         addProduct.addActionListener(e -> {
             try {
@@ -262,6 +321,43 @@ public class MainWindow {
                 new ErrorWindow("SQL error: " + exception.getMessage());
             }
         });
+
+        productsTable.getModel().addTableModelListener(e -> {
+            if (e.getType() == TableModelEvent.UPDATE) {
+                TableModel tableModel = (TableModel)e.getSource();
+
+                switch (e.getColumn()) {
+                    case 2: // Price
+                        try {
+                            database.updateProductPrice((Integer)tableModel.getValueAt(e.getFirstRow(), 0),
+                                    Double.parseDouble((String)tableModel.getValueAt(e.getFirstRow(), 2)));
+                        } catch (CRMDBNotConnectedException exception) {
+                            new ErrorWindow("SQLite3 database disconnected.");
+                        } catch (SQLException exception) {
+                            new ErrorWindow("SQL error: " + exception.getMessage());
+                        } catch (InvalidProductException exception) {
+                            new ErrorWindow("Invalid product id passed to CRMDatabase::updateProductPrice at line " +
+                                    Integer.toString(exception.getStackTrace()[0].getLineNumber()));
+                        }
+                        break;
+                    case 3: // Stock
+                        try {
+                            database.updateProductStock((Integer)tableModel.getValueAt(e.getFirstRow(), 0),
+                                    Integer.parseInt((String)tableModel.getValueAt(e.getFirstRow(), 3)));
+                        } catch (CRMDBNotConnectedException exception) {
+                            new ErrorWindow("SQLite3 database disconnected.");
+                        } catch (SQLException exception) {
+                            new ErrorWindow("SQL error: " + exception.getMessage());
+                        } catch (InvalidProductException exception) {
+                            new ErrorWindow("Invalid product id passed to CRMDatabase::updateProductStock at line " +
+                                    Integer.toString(exception.getStackTrace()[0].getLineNumber()));
+                        }
+                        break;
+                    default:
+                        break;
+                }
+            }
+        });
     }
 
     /**
@@ -271,7 +367,9 @@ public class MainWindow {
         try {
             Object[][] data = database.getProducts();
             DefaultTableModel tableModel = data == null ? new DefaultTableModel(productsTableColumnNames, 0) :
-                    new DefaultTableModel(data, productsTableColumnNames);
+                    new DefaultTableModel(data, productsTableColumnNames) {
+                        @Override public boolean isCellEditable(int row, int column) { return column != 0 && column != 1; }
+                    };
 
             productsTable.setModel(tableModel);
         } catch (CRMDBNotConnectedException exception) {
@@ -314,6 +412,8 @@ public class MainWindow {
         updateAvailability();
         clearInvoiceProductsTable();
 
+        invoiceProductsTable.getTableHeader().setReorderingAllowed(false);
+
         productsDropDownList.addActionListener(e -> {
             if (productsDropDownList.getItemCount() > 0)
                 quantity.setText("1");
@@ -355,8 +455,9 @@ public class MainWindow {
                     ob[i][3] = invoiceProducts.get(i).getQuantity();
                 }
 
-                DefaultTableModel model = new DefaultTableModel(ob, invoiceProductsTableColumnsNames);
-                invoiceProductsTable.setModel(model);
+                invoiceProductsTable.setModel(new DefaultTableModel(ob, invoiceProductsTableColumnsNames) {
+                    @Override public boolean isCellEditable(int row, int column) { return false; }
+                });
 
                 Double price = Double.parseDouble(totalPriceLabel.getText()) + (Double)productData[2] * productQuantity;
                 totalPriceLabel.setText(price.toString());

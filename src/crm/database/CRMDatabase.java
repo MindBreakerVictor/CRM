@@ -103,7 +103,6 @@ public class CRMDatabase implements AutoCloseable {
     /**
      * Inserts a customer in `customer` table and in `individual` or `company` table,
      * depending on the run-time type of customer object.
-     * TODO: Make the whole operation transactional, so we're able to rollback in case the second insert fails.
      * @param customer must be a valid Individual or Company object.
      * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
      * @throws SQLException if a database access error occurs.
@@ -113,46 +112,60 @@ public class CRMDatabase implements AutoCloseable {
             throw new CRMDBNotConnectedException();
 
         String insertIntoCustomer = "INSERT INTO `customer`(`delivery_address`, `contact_number`) VALUES (?, ?);";
-        PreparedStatement statement = connection.prepareStatement(insertIntoCustomer);
 
-        statement.setString(1, customer.getDeliveryAddress());
-        statement.setString(2, customer.getContactNumber());
-        statement.executeUpdate();
+        connection.setAutoCommit(false);
 
-        int customerId = 0;
-        ResultSet resultSet = statement.getGeneratedKeys();
+        try {
+            PreparedStatement statement = connection.prepareStatement(insertIntoCustomer);
 
-        if (resultSet.next())
-            customerId = resultSet.getInt(1);
-        //else rollback previous insert and throw exception
+            statement.setString(1, customer.getDeliveryAddress());
+            statement.setString(2, customer.getContactNumber());
 
-        if (customer instanceof Individual) {
-            Individual individual = (Individual)customer;
-            String sql2 = "INSERT INTO `individual`(`customer_id`, `first_name`, `last_name`) VALUES (?, ?, ?);";
-            PreparedStatement statement2 = connection.prepareStatement(sql2);
+            if (statement.executeUpdate() != 1)
+                throw new SQLException("No customer inserted!");
 
-            statement2.setInt(1, customerId);
-            statement2.setString(2, individual.getFirstName());
-            statement2.setString(3, individual.getLastName());
-            statement2.executeUpdate();
-            statement2.close();
-        } else if (customer instanceof Company) {
-            Company company = (Company)customer;
-            String insertIntoCompany = "INSERT INTO `company`(`customer_id`, `name`, `fiscal_code`, " +
-                    "`bank_account`, `hq_address`) VALUES (?, ?, ?, ?, ?);";
-            PreparedStatement statement2 = connection.prepareStatement(insertIntoCompany);
+            int customerId = 0;
+            ResultSet resultSet = statement.getGeneratedKeys();
 
-            statement2.setInt(1, customerId);
-            statement2.setString(2, company.getName());
-            statement2.setString(3, company.getFiscalCode());
-            statement2.setString(4, company.getBankAccount());
-            statement2.setString(5, company.getHeadquartersAddress());
-            statement2.executeUpdate();
-            statement2.close();
+            if (resultSet.next())
+                customerId = resultSet.getInt(1);
+
+            resultSet.close();
+            statement.close();
+
+            if (customer instanceof Individual) {
+                Individual individual = (Individual) customer;
+                String insertIntoIndividual = "INSERT INTO `individual`(`customer_id`, `first_name`, `last_name`) VALUES (?, ?, ?);";
+                statement = connection.prepareStatement(insertIntoIndividual);
+
+                statement.setInt(1, customerId);
+                statement.setString(2, individual.getFirstName());
+                statement.setString(3, individual.getLastName());
+                statement.executeUpdate();
+                statement.close();
+            } else if (customer instanceof Company) {
+                Company company = (Company) customer;
+                String insertIntoCompany = "INSERT INTO `company`(`customer_id`, `name`, `fiscal_code`, " +
+                        "`bank_account`, `hq_address`) VALUES (?, ?, ?, ?, ?);";
+                statement = connection.prepareStatement(insertIntoCompany);
+
+                statement.setInt(1, customerId);
+                statement.setString(2, company.getName());
+                statement.setString(3, company.getFiscalCode());
+                statement.setString(4, company.getBankAccount());
+                statement.setString(5, company.getHeadquartersAddress());
+                statement.executeUpdate();
+                statement.close();
+            } else
+                throw new SQLException("Unknown customer instanceof.");
+
+            connection.commit();
+            connection.setAutoCommit(true);
+        } catch (SQLException exception) {
+            connection.rollback();
+            connection.setAutoCommit(true);
+            throw exception;
         }
-
-        resultSet.close();
-        statement.close();
     }
 
     /**
@@ -348,24 +361,19 @@ public class CRMDatabase implements AutoCloseable {
         if (products[0].length != 4)
             throw new InvalidProductException();
 
-        connection.setAutoCommit(false);
-
         String insertInvoice = "INSERT INTO `invoice`(`customer_id`, `date`) VALUES (?, CURRENT_TIMESTAMP);";
         String insertProduct = "INSERT INTO `invoice_product` VALUES (?, ?, ?, ?);";
-        PreparedStatement insertInvoiceStatement = connection.prepareStatement(insertInvoice);
 
-        insertInvoiceStatement.setInt(1, customerId);
+        connection.setAutoCommit(false);
 
         try {
+            PreparedStatement insertInvoiceStatement = connection.prepareStatement(insertInvoice);
+
+            insertInvoiceStatement.setInt(1, customerId);
+
             if (insertInvoiceStatement.executeUpdate() != 1)
-                throw new SQLException();
-        } catch (SQLException exception) {
-            connection.rollback();
-            connection.setAutoCommit(true);
-            throw new InvalidCustomerException();
-        }
+                throw new InvalidCustomerException();
 
-        try {
             int invoiceId = 0;
             ResultSet resultSet = insertInvoiceStatement.getGeneratedKeys();
 
@@ -388,7 +396,70 @@ public class CRMDatabase implements AutoCloseable {
 
             connection.commit();
             connection.setAutoCommit(true);
-        } catch (SQLException exception) {
+        } catch (Exception exception) {
+            // Catch both InvalidCustomerException and SQLException.
+            connection.rollback();
+            connection.setAutoCommit(true);
+            throw exception;
+        }
+    }
+
+    /**
+     * Update customer.
+     * @param customer must be an instance of Individual or Company with 'id' field valid in the database.
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException if a database access error occurs.
+     * @throws InvalidCustomerException if the 'id' field in customer doesn't exist in the database.
+     */
+    public void updateCustomer(Customer customer) throws CRMDBNotConnectedException, SQLException,
+            InvalidCustomerException {
+        if (connection == null || connection.isClosed())
+            throw new CRMDBNotConnectedException();
+
+        if (!isValidCustomer(customer.getId()))
+            throw new InvalidCustomerException();
+
+        String updateCustomer = "UPDATE `customer` SET `delivery_address`=? AND `contact_number`=? WHERE `id`=?;";
+        String updateIndividual = "UPDATE `individual` SET `first_name`=? AND `last_name`=? WHERE `customer_id`=?;";
+        String updateCompany = "UPDATE `company` SET `name`=?, `fiscal_code`=?, `bank_account`=?, `hq_address`=? WHERE `customer_id`=?;";
+
+        connection.setAutoCommit(false);
+
+        try {
+            PreparedStatement statement = connection.prepareStatement(updateCustomer);
+
+            statement.setString(1, customer.getDeliveryAddress());
+            statement.setString(2, customer.getContactNumber());
+            statement.setInt(3, customer.getId());
+            statement.executeUpdate();
+            statement.close();
+
+            if (customer instanceof Individual) {
+                Individual individual = (Individual)customer;
+                statement = connection.prepareStatement(updateIndividual);
+
+                statement.setString(1, individual.getFirstName());
+                statement.setString(2, individual.getLastName());
+                statement.setInt(3, customer.getId());
+                statement.executeUpdate();
+                statement.close();
+            } else if (customer instanceof Company) {
+                Company company = (Company)customer;
+                statement = connection.prepareStatement(updateCompany);
+
+                statement.setString(1, company.getName());
+                statement.setString(2, company.getFiscalCode());
+                statement.setString(3, company.getBankAccount());
+                statement.setString(4, company.getHeadquartersAddress());
+                statement.setInt(5, customer.getId());
+                statement.executeUpdate();
+                statement.close();
+            } else
+                throw new InvalidCustomerException();
+
+            connection.commit();
+            connection.setAutoCommit(true);
+        } catch (Exception exception) {
             connection.rollback();
             connection.setAutoCommit(true);
             throw exception;
