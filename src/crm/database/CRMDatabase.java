@@ -879,4 +879,85 @@ public class CRMDatabase implements AutoCloseable {
         statement.close();
         return isValidInvoice;
     }
+
+    /**
+     * Search product by id.
+     * @return a one dimensional array of Object, containing the data for the product.
+     * @param productId is the uid of the product in the database.
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException if a database access error occurs.
+     * @throws InvalidProductException if the id passed as parameter doesn't exist in the database.
+     */
+    public Object[] getProduct(int productId) throws CRMDBNotConnectedException, SQLException, InvalidProductException {
+        if (connection == null || connection.isClosed())
+            throw new CRMDBNotConnectedException();
+
+        if (!isValidProduct(productId))
+            throw new InvalidProductException();
+
+        PreparedStatement statement = connection.prepareStatement("SELECT * FROM `product` WHERE `id`=?;");
+
+        statement.setInt(1, productId);
+
+        Object[] product = null;
+        ResultSet resultSet = statement.executeQuery();
+
+        if (resultSet.next()) {
+            product = new Object[MainWindow.productsTableColumnNames.length];
+            product[0] = resultSet.getInt("id");
+            product[1] = resultSet.getString("name");
+            product[2] = resultSet.getDouble("price");
+            product[3] = resultSet.getInt("stock");
+        }
+
+        resultSet.close();
+        statement.close();
+
+        if (product == null)
+            throw new InvalidProductException();
+
+        return product;
+    }
+
+    /**
+     * Search product by name.
+     * @return a two dimensional array of Object, containing the data for each product on a row.
+     * @param namePattern
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException if a database access error occurs.
+     * @throws InvalidProductException if no product was found.
+     */
+    public Object[][] getProduct(String namePattern) throws CRMDBNotConnectedException, SQLException, InvalidProductException {
+        if (connection == null || connection.isClosed())
+            throw new CRMDBNotConnectedException();
+
+        List<Object[]> products = new ArrayList<>();
+        PreparedStatement statement = connection.prepareStatement("SELECT * FROM `product` WHERE `name` LIKE ?;");
+
+        statement.setString(1, "%" + namePattern + "%");
+
+        ResultSet resultSet = statement.executeQuery();
+
+        while (resultSet.next()) {
+            Object[] product = new Object[4];
+            product[0] = resultSet.getInt("id");
+            product[1] = resultSet.getString("name");
+            product[2] = resultSet.getDouble("price");
+            product[3] = resultSet.getInt("stock");
+            products.add(product);
+        }
+
+        resultSet.close();
+        statement.close();
+
+        if (products.isEmpty())
+            throw new InvalidProductException();
+
+        Object[][] productsData = new Object[products.size()][MainWindow.productsTableColumnNames.length];
+
+        for (int i = 0; i < products.size(); ++i)
+            productsData[i] = products.get(i);
+
+        return productsData;
+    }
 }

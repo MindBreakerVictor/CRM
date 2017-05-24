@@ -70,6 +70,10 @@ public class MainWindow {
     public static final Object[] productsTableColumnNames = { "ID", "Name", "Price", "Stock" };
 
     // b. Check Deposit tab
+    private JTextField searchProductUID;
+    private JTextField searchProductName;
+    private JButton searchProductButton;
+    private JTable foundProductsTable;
 
     // c. Clear Deposit tab
 
@@ -82,7 +86,6 @@ public class MainWindow {
     private JButton createInvoiceButton;
     private JTable invoiceProductsTable;
     private JLabel availability;
-    private JButton searchProductButton;
     public static final Object[] invoiceProductsTableColumnsNames = {"ID", "Name", "Price", "Quantity"};
     private List<Product> invoiceProducts;
 
@@ -393,7 +396,41 @@ public class MainWindow {
      * Initiate Check Deposit sub tab of Deposit tab.
      */
     private void initiateCheckDepositTab() {
-        // TODO
+        foundProductsTable.getTableHeader().setReorderingAllowed(false);
+        foundProductsTable.setModel(new DefaultTableModel(productsTableColumnNames, 0));
+
+        searchProductButton.addActionListener(e -> {
+            if (!searchProductUID.getText().isEmpty()) {
+                try {
+                    Object[][] product = new Object[1][productsTableColumnNames.length];
+                    product[0] = database.getProduct(Integer.parseInt(searchProductUID.getText()));
+
+                    foundProductsTable.setModel(new DefaultTableModel(product, productsTableColumnNames) {
+                        @Override public boolean isCellEditable(int row, int column) { return false; }
+                    });
+                } catch (CRMDBNotConnectedException exception) {
+                    new ErrorWindow("SQLite3 database disconnected.");
+                } catch (SQLException exception) {
+                    new ErrorWindow("SQL error: " + exception.getMessage());
+                } catch (InvalidProductException exception) {
+                    new ErrorWindow("No product found!");
+                }
+            } else if (!searchProductName.getText().isEmpty()) {
+                try {
+                    Object[][] products = database.getProduct(searchProductName.getText());
+
+                    foundProductsTable.setModel(new DefaultTableModel(products, productsTableColumnNames) {
+                        @Override public boolean isCellEditable(int row, int column) { return false; }
+                    });
+                } catch (CRMDBNotConnectedException exception) {
+                    new ErrorWindow("SQLite3 database disconnected.");
+                } catch (SQLException exception) {
+                    new ErrorWindow("SQL error: " + exception.getMessage());
+                } catch (InvalidProductException exception) {
+                    new ErrorWindow("No products found!");
+                }
+            }
+        });
     }
 
     /**
