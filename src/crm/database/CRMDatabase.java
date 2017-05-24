@@ -419,8 +419,8 @@ public class CRMDatabase implements AutoCloseable {
         if (!isValidCustomer(customer.getId()))
             throw new InvalidCustomerException();
 
-        String updateCustomer = "UPDATE `customer` SET `delivery_address`=? AND `contact_number`=? WHERE `id`=?;";
-        String updateIndividual = "UPDATE `individual` SET `first_name`=? AND `last_name`=? WHERE `customer_id`=?;";
+        String updateCustomer = "UPDATE `customer` SET `delivery_address`=?, `contact_number`=? WHERE `id`=?;";
+        String updateIndividual = "UPDATE `individual` SET `first_name`=?, `last_name`=? WHERE `customer_id`=?;";
         String updateCompany = "UPDATE `company` SET `name`=?, `fiscal_code`=?, `bank_account`=?, `hq_address`=? WHERE `customer_id`=?;";
 
         connection.setAutoCommit(false);
