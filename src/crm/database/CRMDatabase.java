@@ -1,7 +1,6 @@
 package crm.database;
 
 import crm.data.*;
-import crm.gui.ErrorWindow;
 import crm.gui.MainWindow;
 
 import java.io.File;
@@ -43,7 +42,7 @@ public class CRMDatabase implements AutoCloseable {
             "`id` INTEGER NOT NULL, " +
             "`name` TEXT NOT NULL, " +
             "`price` REAL NOT NULL, " +
-            "`stock` INT NOT NULL DEFAULT 0, " +
+            "`stock` INTEGER NOT NULL DEFAULT 0, " +
             "PRIMARY KEY(`id`), " +
             "UNIQUE(`name`)" +
         ");\n" +
@@ -64,6 +63,10 @@ public class CRMDatabase implements AutoCloseable {
             "FOREIGN KEY(`product_id`) REFERENCES `product`(`id`)" +
         ");";
 
+    /**
+     * Initiate a new connection to SQLite3 database.
+     * @throws SQLException see connect() method below.
+     */
     public CRMDatabase() throws SQLException {
         connection = null;
         connect();
@@ -71,21 +74,23 @@ public class CRMDatabase implements AutoCloseable {
 
     /**
      * Connects to SQLite3 database. If the database doesn't exists, it will create it.
-     * @throws SQLException if a database access error occurs.
+     * @throws SQLException if a database access error occurs or
+     *                      if the CRM directory couldn't be created in ProgramData.
      */
     public void connect() throws SQLException {
         File crmProgramDataFolder = new File(System.getenv("PROGRAMDATA") + "\\CRM");
 
         if (!crmProgramDataFolder.exists())
-            crmProgramDataFolder.mkdir();
+            if(!crmProgramDataFolder.mkdir())
+                throw new SQLException("Couldn't create CRM directory in ProgramData.");
 
         String crmProgramDataFolderPath = crmProgramDataFolder.getAbsolutePath();
         crmProgramDataFolderPath = crmProgramDataFolderPath.replace('\\', '/');
 
         connection = DriverManager.getConnection("jdbc:sqlite:" + crmProgramDataFolderPath + "/crm.db");
-        Statement statement = connection.createStatement();
+        PreparedStatement statement = connection.prepareStatement(DatabaseCreation);
 
-        statement.executeUpdate(DatabaseCreation);
+        statement.executeUpdate();
         statement.close();
     }
 
@@ -338,7 +343,6 @@ public class CRMDatabase implements AutoCloseable {
 
     /**
      * Insert an invoice in the database.
-     * TODO: This should be done transactional.
      * @param customerId must be a valid customer id from the database.
      * @param products must be a matrix of n lines and 4 columns containing the products.
      *                 The first column is the product id.
@@ -572,8 +576,8 @@ public class CRMDatabase implements AutoCloseable {
                 "c.delivery_address, c.contact_number\n" +
                 "FROM company co JOIN customer c ON (c.id = co.customer_id);";
 
-        Statement statement = connection.createStatement();
-        ResultSet resultSet = statement.executeQuery(getIndividuals);
+        PreparedStatement statement = connection.prepareStatement(getIndividuals);
+        ResultSet resultSet = statement.executeQuery();
 
         while (resultSet.next())
             customers.add(new Individual(resultSet.getString("first_name"),
@@ -583,8 +587,8 @@ public class CRMDatabase implements AutoCloseable {
         resultSet.close();
         statement.close();
 
-        statement = connection.createStatement();
-        resultSet = statement.executeQuery(getCompanies);
+        statement = connection.prepareStatement(getCompanies);
+        resultSet = statement.executeQuery();
 
         while (resultSet.next())
             customers.add(new Company(resultSet.getString("name"),
@@ -607,8 +611,8 @@ public class CRMDatabase implements AutoCloseable {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
-        Statement statement = connection.createStatement();
-        ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) AS IndividualsNo FROM individual;");
+        PreparedStatement statement = connection.prepareStatement("SELECT COUNT(*) AS IndividualsNo FROM individual;");
+        ResultSet resultSet = statement.executeQuery();
 
         int individualsNo = 0;
 
@@ -630,8 +634,8 @@ public class CRMDatabase implements AutoCloseable {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
-        Statement statement = connection.createStatement();
-        ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) AS CompaniesNo FROM company;");
+        PreparedStatement statement = connection.prepareStatement("SELECT COUNT(*) AS CompaniesNo FROM company;");
+        ResultSet resultSet = statement.executeQuery();
 
         int companiesNo = 0;
 
@@ -653,8 +657,8 @@ public class CRMDatabase implements AutoCloseable {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
-        Statement statement = connection.createStatement();
-        ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) AS ProductsNo FROM product;");
+        PreparedStatement statement = connection.prepareStatement("SELECT COUNT(*) AS ProductsNo FROM product;");
+        ResultSet resultSet = statement.executeQuery();
 
         int productsNo = 0;
 
@@ -683,9 +687,10 @@ public class CRMDatabase implements AutoCloseable {
 
         int index = 0;
         Object[][] individualsData = new Object[individualsNo][MainWindow.individualsTableColumnNames.length];
-        Statement statement = connection.createStatement();
-        ResultSet resultSet = statement.executeQuery("SELECT i.customer_id, i.first_name, i.last_name, " +
-                "c.delivery_address, c.contact_number FROM individual i JOIN customer c ON (c.id = i.customer_id);");
+        String selectIndividuals = "SELECT i.customer_id, i.first_name, i.last_name, " +
+                "c.delivery_address, c.contact_number FROM individual i JOIN customer c ON (c.id = i.customer_id);";
+        PreparedStatement statement = connection.prepareStatement(selectIndividuals);
+        ResultSet resultSet = statement.executeQuery();
 
         while (resultSet.next()) {
             individualsData[index][0] = resultSet.getInt("customer_id");
@@ -717,10 +722,11 @@ public class CRMDatabase implements AutoCloseable {
 
         int index = 0;
         Object[][] companiesData = new Object[companiesNo][MainWindow.companiesTableColumnNames.length];
-        Statement statement = connection.createStatement();
-        ResultSet resultSet = statement.executeQuery("SELECT co.customer_id, co.name, co.fiscal_code, " +
+        String selectCompanies = "SELECT co.customer_id, co.name, co.fiscal_code, " +
                 "co.bank_account, co.hq_address, c.delivery_address, c.contact_number " +
-                "FROM company co JOIN customer c ON (c.id = co.customer_id);");
+                "FROM company co JOIN customer c ON (c.id = co.customer_id);";
+        PreparedStatement statement = connection.prepareStatement(selectCompanies);
+        ResultSet resultSet = statement.executeQuery();
 
         while (resultSet.next()) {
             companiesData[index][0] = resultSet.getInt("customer_id");
@@ -754,8 +760,8 @@ public class CRMDatabase implements AutoCloseable {
 
         int index = 0;
         Object[][] productsData = new Object[productsNo][MainWindow.productsTableColumnNames.length];
-        Statement statement = connection.createStatement();
-        ResultSet resultSet = statement.executeQuery("SELECT * FROM product;");
+        PreparedStatement statement = connection.prepareStatement("SELECT * FROM product;");
+        ResultSet resultSet = statement.executeQuery();
 
         while (resultSet.next()) {
             productsData[index][0] = resultSet.getInt("id");
@@ -786,8 +792,8 @@ public class CRMDatabase implements AutoCloseable {
 
         statement.setInt(1, productId);
 
-        ResultSet resultSet = statement.executeQuery();
         int stock = -1;
+        ResultSet resultSet = statement.executeQuery();
 
         if (resultSet.next())
             stock = resultSet.getInt("stock");
@@ -923,7 +929,7 @@ public class CRMDatabase implements AutoCloseable {
     /**
      * Search product by name.
      * @return a two dimensional array of Object, containing the data for each product on a row.
-     * @param namePattern
+     * @param namePattern the pattern to look for.
      * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
      * @throws SQLException if a database access error occurs.
      * @throws InvalidProductException if no product was found.
@@ -968,13 +974,13 @@ public class CRMDatabase implements AutoCloseable {
      * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
      * @throws SQLException if a database access error occurs.
      */
-    public Object[] getBestSellingProduct() throws CRMDBNotConnectedException, SQLException {
+    public Object[] getBestSellingProduct() throws CRMDBNotConnectedException, SQLException, InvalidProductException {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
-        String selectBestSellingProduct = "SELECT product_id, sum(quantity) as quantity FROM invoice_product group by product_id;";
-        PreparedStatement preparedStatement = connection.prepareStatement(selectBestSellingProduct);
-        ResultSet resultSet = preparedStatement.executeQuery();
+        String selectBestSellingProduct = "SELECT product_id, sum(quantity) AS quantity FROM invoice_product GROUP BY product_id;";
+        PreparedStatement statement = connection.prepareStatement(selectBestSellingProduct);
+        ResultSet resultSet = statement.executeQuery();
 
         List<Object[]> data = new ArrayList<>();
 
@@ -986,7 +992,7 @@ public class CRMDatabase implements AutoCloseable {
         }
 
         resultSet.close();
-        preparedStatement.close();
+        statement.close();
 
         int limit = data.size();
         int max = Integer.MIN_VALUE;
@@ -1001,14 +1007,7 @@ public class CRMDatabase implements AutoCloseable {
             }
         }
 
-        if (maxPos >= 0)
-            try {
-                return getProduct((Integer) data.get(maxPos)[0]);
-            } catch (InvalidProductException exception) {
-                new ErrorWindow("Something went wrong in CRMDatabase.getBestSellingProduct.");
-            }
-
-        return null;
+        return maxPos >= 0 ? getProduct((Integer) data.get(maxPos)[0]) : null;
     }
 
     /**
@@ -1021,9 +1020,9 @@ public class CRMDatabase implements AutoCloseable {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
-        String selectBestCustomer = "SELECT customer_id, COUNT(customer_id) as invoices FROM invoice group by customer_id;";
-        PreparedStatement preparedStatement = connection.prepareStatement(selectBestCustomer);
-        ResultSet resultSet = preparedStatement.executeQuery();
+        String selectBestCustomer = "SELECT customer_id, COUNT(customer_id) AS invoices FROM invoice GROUP BY customer_id;";
+        PreparedStatement statement = connection.prepareStatement(selectBestCustomer);
+        ResultSet resultSet = statement.executeQuery();
 
         List<Object[]> data = new ArrayList<>();
 
@@ -1035,7 +1034,7 @@ public class CRMDatabase implements AutoCloseable {
         }
 
         resultSet.close();
-        preparedStatement.close();
+        statement.close();
 
         int limit = data.size();
         int max = Integer.MIN_VALUE;
@@ -1050,10 +1049,7 @@ public class CRMDatabase implements AutoCloseable {
             }
         }
 
-        if (maxPos >= 0)
-            return getCustomerName((Integer)data.get(maxPos)[0]);
-
-        return null;
+        return maxPos >= 0 ? getCustomerName((Integer)data.get(maxPos)[0]) : null;
     }
 
     /**
@@ -1074,8 +1070,8 @@ public class CRMDatabase implements AutoCloseable {
                 "GROUP BY m.CustomerID;";
 
         List<Object[]> data = new ArrayList<>();
-        PreparedStatement preparedStatement = connection.prepareStatement(selectCustomersPayments);
-        ResultSet resultSet = preparedStatement.executeQuery();
+        PreparedStatement statement = connection.prepareStatement(selectCustomersPayments);
+        ResultSet resultSet = statement.executeQuery();
 
         while (resultSet.next()) {
             Object[] rowData = new Object[4];
@@ -1087,7 +1083,7 @@ public class CRMDatabase implements AutoCloseable {
         }
 
         resultSet.close();
-        preparedStatement.close();
+        statement.close();
 
         if (data.isEmpty())
             return null;
@@ -1114,11 +1110,11 @@ public class CRMDatabase implements AutoCloseable {
         String customerName = null;
 
         String getIndividuals = "SELECT first_name, last_name FROM individual WHERE customer_id = ?;";
-        PreparedStatement preparedStatement = connection.prepareStatement(getIndividuals);
+        PreparedStatement statement = connection.prepareStatement(getIndividuals);
 
-        preparedStatement.setInt(1, customerId);
+        statement.setInt(1, customerId);
 
-        ResultSet resultSet = preparedStatement.executeQuery();
+        ResultSet resultSet = statement.executeQuery();
 
         if (resultSet.next()) {
             customerName = resultSet.getString("first_name");
@@ -1126,13 +1122,13 @@ public class CRMDatabase implements AutoCloseable {
         }
 
         resultSet.close();
-        preparedStatement.close();
+        statement.close();
 
         if (customerName == null) {
-            preparedStatement = connection.prepareStatement("SELECT name FROM company WHERE customer_id = ?;");
-            preparedStatement.setInt(1, customerId);
+            statement = connection.prepareStatement("SELECT name FROM company WHERE customer_id = ?;");
+            statement.setInt(1, customerId);
 
-            resultSet = preparedStatement.executeQuery();
+            resultSet = statement.executeQuery();
 
             if (resultSet.next()) {
                 customerName = resultSet.getString("name");
@@ -1153,14 +1149,14 @@ public class CRMDatabase implements AutoCloseable {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
-        PreparedStatement preparedStatement = connection.prepareStatement("SELECT * FROM `company` WHERE `customer_id`=?;");
+        PreparedStatement statement = connection.prepareStatement("SELECT * FROM `company` WHERE `customer_id`=?;");
 
-        preparedStatement.setInt(1, companyId);
-        ResultSet resultSet = preparedStatement.executeQuery();
+        statement.setInt(1, companyId);
+        ResultSet resultSet = statement.executeQuery();
         boolean isCompany = resultSet.next();
 
         resultSet.close();
-        preparedStatement.close();
+        statement.close();
 
         return isCompany;
     }
@@ -1176,14 +1172,14 @@ public class CRMDatabase implements AutoCloseable {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
-        PreparedStatement preparedStatement = connection.prepareStatement("SELECT * FROM `individual` WHERE `customer_id`=?;");
+        PreparedStatement statement = connection.prepareStatement("SELECT * FROM `individual` WHERE `customer_id`=?;");
 
-        preparedStatement.setInt(1, individualId);
-        ResultSet resultSet = preparedStatement.executeQuery();
+        statement.setInt(1, individualId);
+        ResultSet resultSet = statement.executeQuery();
         boolean isIndividual = resultSet.next();
 
         resultSet.close();
-        preparedStatement.close();
+        statement.close();
 
         return isIndividual;
     }

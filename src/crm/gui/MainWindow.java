@@ -201,6 +201,8 @@ public class MainWindow {
             new ErrorWindow("SQLite3 database disconnected.");
         } catch (SQLException exception) {
             new ErrorWindow("SQL error: " + exception.getMessage());
+        } catch (InvalidProductException exception) {
+            new ErrorWindow("CRMDatabase.getProduct received an invalid id as parameter in CRMDatabase.getBestSellingProduct.");
         }
     }
 
