@@ -18,12 +18,6 @@ import java.awt.Toolkit;
 
 import java.sql.SQLException;
 
-/**
- * TODO:
- * 1. Add changeListener in individuals, companies and products tables.
- * 2. Validate data for fields in individuals, companies and products fields.
- */
-
 public class MainWindow {
 
     // Database
@@ -59,6 +53,14 @@ public class MainWindow {
 
     // b. Invoices tab
 
+    // c. Reports tab
+    private JLabel bestSellProd;
+    private JTable reportsTable;
+    private JLabel biggestCustomer;
+    private JLabel totalCompanies;
+    private JLabel totalIndividuals;
+    public static final Object[] reportsTableColumnNames = { "Customer ID", "Name", "Invoices No.", "Total Payment" };
+
     // 2. Deposit tab
 
     // a. Products tab
@@ -92,7 +94,7 @@ public class MainWindow {
         invoiceProducts = new ArrayList<>();
     }
 
-    public MainWindow(CRMDatabase database) throws SQLException, CRMDBNotConnectedException {
+    public MainWindow(CRMDatabase database) {
         this.database = database;
 
         initiateAccountingTab();
@@ -119,6 +121,7 @@ public class MainWindow {
     private void initiateAccountingTab() {
         initiateCustomersTab();
         initiateInvoicesTab();
+        initiateReportsTab();
     }
 
     /**
@@ -173,6 +176,76 @@ public class MainWindow {
                 }
             }
         });
+    }
+
+    private void initiateReportsTab() {
+        updateReportsTable();
+
+        try {
+            Object[] bestSellProduct = database.getBestSellingProduct();
+
+            if (bestSellProduct == null)
+                bestSellProd.setText("No data available.");
+            else
+                bestSellProd.setText(bestSellProduct[1].toString());
+
+            String bgCustomer = database.getBestCustomer();
+
+            if (bgCustomer == null)
+                biggestCustomer.setText("No data available.");
+            else
+                biggestCustomer.setText(bgCustomer);
+        } catch (CRMDBNotConnectedException exception) {
+            new ErrorWindow("SQLite3 database disconnected.");
+        } catch (SQLException exception) {
+            new ErrorWindow("SQL error: " + exception.getMessage());
+        } catch (InvalidProductException exception) {
+            new ErrorWindow("CRMDatabase.getProduct received an invalid id as parameter in CRMDatabase.getBestSellingProduct.");
+        }
+    }
+
+    private void updateReportsTable() {
+        try {
+            Object[][] data = database.getCustomersPayments();
+
+            DefaultTableModel tableModel = data == null ? new DefaultTableModel(reportsTableColumnNames, 0) :
+                    new DefaultTableModel(data, reportsTableColumnNames) {
+                        @Override public boolean isCellEditable(int row, int column) { return false; }
+                    };
+
+            reportsTable.setModel(tableModel);
+            updateTotalEarnings(data);
+        } catch (CRMDBNotConnectedException exception) {
+            new ErrorWindow("SQLite3 database disconnected.");
+        } catch (SQLException exception) {
+            new ErrorWindow("SQL error: " + exception.getMessage());
+        }
+    }
+
+    private void updateTotalEarnings(Object[][] data) {
+        Double totalEarnedFromCompanies = 0.0;
+        Double totalEarnedFromIndividuals = 0.0;
+
+        totalIndividuals.setText(Double.toString(totalEarnedFromIndividuals));
+        totalCompanies.setText(Double.toString(totalEarnedFromCompanies));
+
+        if (data == null)
+            return;
+
+        try {
+            for (Object[] rowData : data)
+                if (database.isCompany((Integer) rowData[0]))
+                    totalEarnedFromCompanies += (Double) rowData[3];
+                else if (database.isIndividual((Integer) rowData[0]))
+                    totalEarnedFromIndividuals += (Double) rowData[3];
+
+            totalIndividuals.setText(Double.toString(totalEarnedFromIndividuals));
+            totalCompanies.setText(Double.toString(totalEarnedFromCompanies));
+        } catch (CRMDBNotConnectedException exception) {
+            new ErrorWindow("SQLite3 database disconnected.");
+        } catch (SQLException exception) {
+            new ErrorWindow("SQL error: " + exception.getMessage());
+        }
     }
 
     /**
@@ -542,6 +615,7 @@ public class MainWindow {
             }
 
             updateProductsTable();  // Update Deposit tab->Products sub-tab table also.
+            updateReportsTable();
             resetInvoice();
         });
 
