@@ -75,8 +75,6 @@ public class MainWindow {
     private JButton searchProductButton;
     private JTable foundProductsTable;
 
-    // c. Clear Deposit tab
-
     // 3. Invoice tab
     private JComboBox<Customer> customersDropDownList;
     private JComboBox<Object> productsDropDownList;
@@ -85,8 +83,8 @@ public class MainWindow {
     private JButton addProductButton;
     private JButton createInvoiceButton;
     private JTable invoiceProductsTable;
-    private JLabel availability;
-    public static final Object[] invoiceProductsTableColumnsNames = {"ID", "Name", "Price", "Quantity"};
+    private JButton clearInvoiceButton;
+    public static final Object[] invoiceProductsTableColumnsNames = {"ID", "Name", "Price", "Quantity" };
     private List<Product> invoiceProducts;
 
     {
@@ -301,7 +299,6 @@ public class MainWindow {
     private void initiateDepositTab() {
         initiateProductsTab();
         initiateCheckDepositTab();
-        initiateClearDepositTab();
     }
 
     /**
@@ -434,20 +431,12 @@ public class MainWindow {
     }
 
     /**
-     * Initiate Clear Deposit sub tab of Deposit tab.
-     */
-    private void initiateClearDepositTab() {
-        // TODO
-    }
-
-    /**
      * Initiate Invoice tab.
      */
     private void initiateInvoiceTab() {
         updateCustomersDropDownList();
-        updateProductsDropDownList();
+        resetInvoice();
         updateAvailability();
-        clearInvoiceProductsTable();
 
         invoiceProductsTable.getTableHeader().setReorderingAllowed(false);
 
@@ -460,8 +449,10 @@ public class MainWindow {
             private void update(DocumentEvent event) {
                 if (quantity.getText().matches("^[1-9][0-9]*$") || quantity.getText().matches(""))
                     updateAvailability();
-                else
-                    availability.setText("Wrong input!");
+                else {
+                    addProductButton.setText("Wrong input!");
+                    addProductButton.setEnabled(false);
+                }
             }
 
             public void changedUpdate(DocumentEvent event) { update(event); }
@@ -472,9 +463,6 @@ public class MainWindow {
         });
 
         addProductButton.addActionListener(e -> {
-            if (!availability.getText().matches("Available"))
-                return;
-
             try {
                 Object[] productData = database.getProductByName(productsDropDownList.getSelectedItem().toString());
                 int productQuantity = Integer.parseInt(quantity.getText());
@@ -539,11 +527,11 @@ public class MainWindow {
             }
 
             // Update products stock
-            for (int i = 0; i < products.length; ++i) {
+            for (Object[] product : products) {
                 try {
-                    int productId = (Integer)products[i][0];
+                    int productId = (Integer) product[0];
                     database.updateProductStock(productId,
-                            database.getProductStock(productId) - (Integer)products[i][3]);
+                            database.getProductStock(productId) - (Integer) product[3]);
                 } catch (CRMDBNotConnectedException exception) {
                     new ErrorWindow("SQLite3 database disconnected.");
                 } catch (SQLException exception) {
@@ -554,33 +542,39 @@ public class MainWindow {
             }
 
             updateProductsTable();  // Update Deposit tab->Products sub-tab table also.
-            invoiceProducts.clear();
-            clearInvoiceProductsTable();
-            totalPriceLabel.setText("0.0");
-            updateProductsDropDownList();
+            resetInvoice();
         });
+
+        clearInvoiceButton.addActionListener(e -> resetInvoice());
     }
 
-    private void clearInvoiceProductsTable() {
+    private void resetInvoice() {
+        invoiceProducts.clear();
         invoiceProductsTable.setModel(new DefaultTableModel(invoiceProductsTableColumnsNames, 0));
+        totalPriceLabel.setText("0.0");
+        updateProductsDropDownList();
     }
 
     /**
-     * Updates availability label.
+     * Updates addProductButton
      */
     private void updateAvailability() {
         try {
             Object[] product = database.getProductByName((String)productsDropDownList.getSelectedItem());
 
             if (product == null || quantity.getText().equals("")) {
-                availability.setText("Check availability.");
+                addProductButton.setText("Check availability.");
+                addProductButton.setEnabled(false);
                 return;
             }
 
-            if (Integer.parseInt(quantity.getText()) > (Integer)product[3])
-                availability.setText("Unavailable");
-            else
-                availability.setText("Available");
+            if (Integer.parseInt(quantity.getText()) > (Integer)product[3]) {
+                addProductButton.setText("Unavailable");
+                addProductButton.setEnabled(false);
+            } else {
+                addProductButton.setText("Add Product");
+                addProductButton.setEnabled(true);
+            }
         } catch (CRMDBNotConnectedException exception) {
             new ErrorWindow("SQLite3 database disconnected.");
         } catch (SQLException exception) {
