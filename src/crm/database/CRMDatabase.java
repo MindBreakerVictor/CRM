@@ -1,6 +1,7 @@
 package crm.database;
 
 import crm.data.*;
+import crm.gui.ErrorWindow;
 import crm.gui.MainWindow;
 
 import java.io.File;
@@ -960,104 +961,230 @@ public class CRMDatabase implements AutoCloseable {
 
         return productsData;
     }
-    public Object[] getBestSellProduct() throws SQLException, CRMDBNotConnectedException, InvalidProductException {
+
+    /**
+     * Search for the best selling product.
+     * @return an uni-dimensional array of Object, containing the product data.
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException if a database access error occurs.
+     */
+    public Object[] getBestSellingProduct() throws CRMDBNotConnectedException, SQLException {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
-        PreparedStatement statement = connection.prepareStatement("SELECT product_id, sum(quantity) as quant FROM invoice_product " +
-                "group by product_id;");
-        ResultSet resultSet = statement.executeQuery();
+        String selectBestSellingProduct = "SELECT product_id, sum(quantity) as quantity FROM invoice_product group by product_id;";
+        PreparedStatement preparedStatement = connection.prepareStatement(selectBestSellingProduct);
+        ResultSet resultSet = preparedStatement.executeQuery();
 
-        ArrayList<Integer> quantities = new ArrayList<>();
-        ArrayList<Integer> ids = new ArrayList<>();
+        List<Object[]> data = new ArrayList<>();
 
         while (resultSet.next()) {
-            ids.add(resultSet.getInt("product_id"));
-            quantities.add(resultSet.getInt("quant"));
+            Object[] rowData = new Object[2];
+            rowData[0] = resultSet.getInt("product_id");
+            rowData[1] = resultSet.getInt("quantity");
+            data.add(rowData);
         }
 
-        int limit = quantities.size();
+        resultSet.close();
+        preparedStatement.close();
+
+        int limit = data.size();
         int max = Integer.MIN_VALUE;
         int maxPos = -1;
-        for (int i = 0; i < limit; i++) {
-            int value = quantities.get(i);
+
+        for (int i = 0; i < limit; ++i) {
+            int value = (Integer)data.get(i)[1];
+
             if (value > max) {
                 max = value;
                 maxPos = i;
             }
         }
 
-        if (maxPos >= 0) {
-            return getProduct(ids.get(maxPos));
-        } else {
+        if (maxPos >= 0)
+            try {
+                return getProduct((Integer) data.get(maxPos)[0]);
+            } catch (InvalidProductException exception) {
+                new ErrorWindow("Something went wrong in CRMDatabase.getBestSellingProduct.");
+            }
+
+        return null;
+    }
+
+    /**
+     * Search for the best customer. The best customer is the one that earned us the most money.
+     * @return a string with the name of the best customer.
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException if a database access error occurs.
+     */
+    public String getBestCustomer() throws CRMDBNotConnectedException, SQLException {
+        if (connection == null || connection.isClosed())
+            throw new CRMDBNotConnectedException();
+
+        String selectBestCustomer = "SELECT customer_id, COUNT(customer_id) as invoices FROM invoice group by customer_id;";
+        PreparedStatement preparedStatement = connection.prepareStatement(selectBestCustomer);
+        ResultSet resultSet = preparedStatement.executeQuery();
+
+        List<Object[]> data = new ArrayList<>();
+
+        while (resultSet.next()) {
+            Object[] rowData = new Object[2];
+            rowData[0] = resultSet.getInt("customer_id");
+            rowData[1] = resultSet.getInt("invoices");
+            data.add(rowData);
+        }
+
+        resultSet.close();
+        preparedStatement.close();
+
+        int limit = data.size();
+        int max = Integer.MIN_VALUE;
+        int maxPos = -1;
+
+        for (int i = 0; i < limit; ++i) {
+            int value = (Integer)data.get(i)[1];
+
+            if (value > max) {
+                max = value;
+                maxPos = i;
+            }
+        }
+
+        if (maxPos >= 0)
+            return getCustomerName((Integer)data.get(maxPos)[0]);
+
+        return null;
+    }
+
+    /**
+     * Get the no. of invoices for each customer and the total money we earned from them.
+     * @return a two-dimensional array containing the data about customers.
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException if a database access error occurs.
+     */
+    public Object[][] getCustomersPayments() throws CRMDBNotConnectedException, SQLException {
+        if (connection == null || connection.isClosed())
+            throw new CRMDBNotConnectedException();
+
+        String selectCustomersPayments =
+                "SELECT m.CustomerID, COUNT(m.InvoiceID) AS 'Invoices No.', sum(m.Price) AS 'Total earned from customer'\n" +
+                "FROM (SELECT i.customer_id AS 'CustomerID', ip.invoice_id AS 'InvoiceID', sum(ip.product_price * ip.quantity) AS 'Price'\n" +
+                "      FROM `invoice_product` ip JOIN `invoice` i ON (i.id = ip.invoice_id)\n" +
+                "      GROUP BY ip.invoice_id) m\n" +
+                "GROUP BY m.CustomerID;";
+
+        List<Object[]> data = new ArrayList<>();
+        PreparedStatement preparedStatement = connection.prepareStatement(selectCustomersPayments);
+        ResultSet resultSet = preparedStatement.executeQuery();
+
+        while (resultSet.next()) {
+            Object[] rowData = new Object[4];
+            rowData[0] = resultSet.getInt("CustomerID");
+            rowData[1] = getCustomerName((Integer)rowData[0]);
+            rowData[2] = resultSet.getInt("Invoices No.");
+            rowData[3] = resultSet.getDouble("Total earned from customer");
+            data.add(rowData);
+        }
+
+        resultSet.close();
+        preparedStatement.close();
+
+        if (data.isEmpty())
             return null;
-        }
+
+        Object[][] rawData = new Object[data.size()][4];
+
+        for (int i = 0; i < data.size(); ++i)
+            rawData[i] = data.get(i);
+
+        return rawData;
     }
 
-    public String getBiggestCustomer() throws SQLException, CRMDBNotConnectedException {
-        if (connection == null || connection.isClosed())
-            throw new CRMDBNotConnectedException();
-
-        PreparedStatement statement = connection.prepareStatement("SELECT customer_id, COUNT(customer_id) as invoices FROM invoice group by customer_id;");
-        ResultSet resultSet = statement.executeQuery();
-
-        String biggestCustomer = null;
-
-        ArrayList<Integer> ids = new ArrayList<>();
-        ArrayList<Integer> invoices = new ArrayList<>();
-
-        while (resultSet.next()) {
-            ids.add(resultSet.getInt("customer_id"));
-            invoices.add(resultSet.getInt("invoices"));
-        }
-
-        int limit = invoices.size();
-        int max = Integer.MIN_VALUE;
-        int maxPos = -1;
-        for (int i = 0; i < limit; i++) {
-            int value = invoices.get(i);
-            if (value > max) {
-                max = value;
-                maxPos = i;
-            }
-        }
-
-        if (maxPos >= 0) {
-            biggestCustomer = getCustomerById(ids.get(maxPos));
-        }
-
-        return biggestCustomer;
-    }
-
-    private String getCustomerById(int id) throws SQLException, CRMDBNotConnectedException {
+    /**
+     * Gets the name of a customer.
+     * @param customerId represents the id of the customer.
+     * @return the name of the customer. In case of an individual it is the concatenation between first name and last name.
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException if a database access error occurs.
+     */
+    private String getCustomerName(int customerId) throws CRMDBNotConnectedException, SQLException {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
         String customerName = null;
 
         String getIndividuals = "SELECT first_name, last_name FROM individual WHERE customer_id = ?;";
-        PreparedStatement statement = connection.prepareStatement(getIndividuals);
-        statement.setInt(1, id);
-        ResultSet resultSet = statement.executeQuery();
+        PreparedStatement preparedStatement = connection.prepareStatement(getIndividuals);
 
-        while (resultSet.next()) {
+        preparedStatement.setInt(1, customerId);
+
+        ResultSet resultSet = preparedStatement.executeQuery();
+
+        if (resultSet.next()) {
             customerName = resultSet.getString("first_name");
-            customerName = customerName + resultSet.getString("last_name");
+            customerName = customerName + " " + resultSet.getString("last_name");
         }
+
+        resultSet.close();
+        preparedStatement.close();
 
         if (customerName == null) {
-            String getCompanies = "SELECT name FROM company WHERE customer_id = ?;";
-            PreparedStatement statementC = connection.prepareStatement(getCompanies);
-            statementC.setInt(1, id);
-            ResultSet resultSet2 = statementC.executeQuery();
+            preparedStatement = connection.prepareStatement("SELECT name FROM company WHERE customer_id = ?;");
+            preparedStatement.setInt(1, customerId);
 
-            while (resultSet2.next()) {
-                customerName = resultSet2.getString("name");
+            resultSet = preparedStatement.executeQuery();
+
+            if (resultSet.next()) {
+                customerName = resultSet.getString("name");
             }
-
-            return customerName;
         }
 
-        return  customerName;
+        return customerName;
+    }
+
+    /**
+     * Checks if an id represents a company.
+     * @param companyId
+     * @return true if the provided id is a company.
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException if a database access error occurs.
+     */
+    public boolean isCompany(int companyId) throws CRMDBNotConnectedException, SQLException {
+        if (connection == null || connection.isClosed())
+            throw new CRMDBNotConnectedException();
+
+        PreparedStatement preparedStatement = connection.prepareStatement("SELECT * FROM `company` WHERE `customer_id`=?;");
+
+        preparedStatement.setInt(1, companyId);
+        ResultSet resultSet = preparedStatement.executeQuery();
+        boolean isCompany = resultSet.next();
+
+        resultSet.close();
+        preparedStatement.close();
+
+        return isCompany;
+    }
+
+    /**
+     * Checks if an id represents an individual.
+     * @param individualId
+     * @return true if the provided id is an individual.
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException if a database access error occurs.
+     */
+    public boolean isIndividual(int individualId) throws CRMDBNotConnectedException, SQLException {
+        if (connection == null || connection.isClosed())
+            throw new CRMDBNotConnectedException();
+
+        PreparedStatement preparedStatement = connection.prepareStatement("SELECT * FROM `individual` WHERE `customer_id`=?;");
+
+        preparedStatement.setInt(1, individualId);
+        ResultSet resultSet = preparedStatement.executeQuery();
+        boolean isIndividual = resultSet.next();
+
+        resultSet.close();
+        preparedStatement.close();
+
+        return isIndividual;
     }
 }
