@@ -813,7 +813,7 @@ public class CRMDatabase implements AutoCloseable {
      * @param productName must be a valid product name from the database.
      * @return the stock of the product if the product name is valid.
      * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
-     * @throws SQLException
+     * @throws SQLException if a database access error occurs.
      * @throws InvalidProductException if the product name is invalid.
      */
     public int getProductStock(String productName) throws CRMDBNotConnectedException,
