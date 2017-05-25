@@ -42,7 +42,7 @@ public class CRMDatabase implements AutoCloseable {
             "`id` INTEGER NOT NULL, " +
             "`name` TEXT NOT NULL, " +
             "`price` REAL NOT NULL, " +
-            "`stock` INT NOT NULL DEFAULT 0, " +
+            "`stock` INTEGER NOT NULL DEFAULT 0, " +
             "PRIMARY KEY(`id`), " +
             "UNIQUE(`name`)" +
         ");\n" +
@@ -63,6 +63,10 @@ public class CRMDatabase implements AutoCloseable {
             "FOREIGN KEY(`product_id`) REFERENCES `product`(`id`)" +
         ");";
 
+    /**
+     * Initiate a new connection to SQLite3 database.
+     * @throws SQLException see connect() method below.
+     */
     public CRMDatabase() throws SQLException {
         connection = null;
         connect();
@@ -70,21 +74,23 @@ public class CRMDatabase implements AutoCloseable {
 
     /**
      * Connects to SQLite3 database. If the database doesn't exists, it will create it.
-     * @throws SQLException if a database access error occurs.
+     * @throws SQLException if a database access error occurs or
+     *                      if the CRM directory couldn't be created in ProgramData.
      */
     public void connect() throws SQLException {
         File crmProgramDataFolder = new File(System.getenv("PROGRAMDATA") + "\\CRM");
 
         if (!crmProgramDataFolder.exists())
-            crmProgramDataFolder.mkdir();
+            if(!crmProgramDataFolder.mkdir())
+                throw new SQLException("Couldn't create CRM directory in ProgramData.");
 
         String crmProgramDataFolderPath = crmProgramDataFolder.getAbsolutePath();
         crmProgramDataFolderPath = crmProgramDataFolderPath.replace('\\', '/');
 
         connection = DriverManager.getConnection("jdbc:sqlite:" + crmProgramDataFolderPath + "/crm.db");
-        Statement statement = connection.createStatement();
+        PreparedStatement statement = connection.prepareStatement(DatabaseCreation);
 
-        statement.executeUpdate(DatabaseCreation);
+        statement.executeUpdate();
         statement.close();
     }
 
@@ -337,7 +343,6 @@ public class CRMDatabase implements AutoCloseable {
 
     /**
      * Insert an invoice in the database.
-     * TODO: This should be done transactional.
      * @param customerId must be a valid customer id from the database.
      * @param products must be a matrix of n lines and 4 columns containing the products.
      *                 The first column is the product id.
@@ -571,8 +576,8 @@ public class CRMDatabase implements AutoCloseable {
                 "c.delivery_address, c.contact_number\n" +
                 "FROM company co JOIN customer c ON (c.id = co.customer_id);";
 
-        Statement statement = connection.createStatement();
-        ResultSet resultSet = statement.executeQuery(getIndividuals);
+        PreparedStatement statement = connection.prepareStatement(getIndividuals);
+        ResultSet resultSet = statement.executeQuery();
 
         while (resultSet.next())
             customers.add(new Individual(resultSet.getString("first_name"),
@@ -582,8 +587,8 @@ public class CRMDatabase implements AutoCloseable {
         resultSet.close();
         statement.close();
 
-        statement = connection.createStatement();
-        resultSet = statement.executeQuery(getCompanies);
+        statement = connection.prepareStatement(getCompanies);
+        resultSet = statement.executeQuery();
 
         while (resultSet.next())
             customers.add(new Company(resultSet.getString("name"),
@@ -606,8 +611,8 @@ public class CRMDatabase implements AutoCloseable {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
-        Statement statement = connection.createStatement();
-        ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) AS IndividualsNo FROM individual;");
+        PreparedStatement statement = connection.prepareStatement("SELECT COUNT(*) AS IndividualsNo FROM individual;");
+        ResultSet resultSet = statement.executeQuery();
 
         int individualsNo = 0;
 
@@ -629,8 +634,8 @@ public class CRMDatabase implements AutoCloseable {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
-        Statement statement = connection.createStatement();
-        ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) AS CompaniesNo FROM company;");
+        PreparedStatement statement = connection.prepareStatement("SELECT COUNT(*) AS CompaniesNo FROM company;");
+        ResultSet resultSet = statement.executeQuery();
 
         int companiesNo = 0;
 
@@ -652,8 +657,8 @@ public class CRMDatabase implements AutoCloseable {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
-        Statement statement = connection.createStatement();
-        ResultSet resultSet = statement.executeQuery("SELECT COUNT(*) AS ProductsNo FROM product;");
+        PreparedStatement statement = connection.prepareStatement("SELECT COUNT(*) AS ProductsNo FROM product;");
+        ResultSet resultSet = statement.executeQuery();
 
         int productsNo = 0;
 
@@ -682,9 +687,10 @@ public class CRMDatabase implements AutoCloseable {
 
         int index = 0;
         Object[][] individualsData = new Object[individualsNo][MainWindow.individualsTableColumnNames.length];
-        Statement statement = connection.createStatement();
-        ResultSet resultSet = statement.executeQuery("SELECT i.customer_id, i.first_name, i.last_name, " +
-                "c.delivery_address, c.contact_number FROM individual i JOIN customer c ON (c.id = i.customer_id);");
+        String selectIndividuals = "SELECT i.customer_id, i.first_name, i.last_name, " +
+                "c.delivery_address, c.contact_number FROM individual i JOIN customer c ON (c.id = i.customer_id);";
+        PreparedStatement statement = connection.prepareStatement(selectIndividuals);
+        ResultSet resultSet = statement.executeQuery();
 
         while (resultSet.next()) {
             individualsData[index][0] = resultSet.getInt("customer_id");
@@ -716,10 +722,11 @@ public class CRMDatabase implements AutoCloseable {
 
         int index = 0;
         Object[][] companiesData = new Object[companiesNo][MainWindow.companiesTableColumnNames.length];
-        Statement statement = connection.createStatement();
-        ResultSet resultSet = statement.executeQuery("SELECT co.customer_id, co.name, co.fiscal_code, " +
+        String selectCompanies = "SELECT co.customer_id, co.name, co.fiscal_code, " +
                 "co.bank_account, co.hq_address, c.delivery_address, c.contact_number " +
-                "FROM company co JOIN customer c ON (c.id = co.customer_id);");
+                "FROM company co JOIN customer c ON (c.id = co.customer_id);";
+        PreparedStatement statement = connection.prepareStatement(selectCompanies);
+        ResultSet resultSet = statement.executeQuery();
 
         while (resultSet.next()) {
             companiesData[index][0] = resultSet.getInt("customer_id");
@@ -753,8 +760,8 @@ public class CRMDatabase implements AutoCloseable {
 
         int index = 0;
         Object[][] productsData = new Object[productsNo][MainWindow.productsTableColumnNames.length];
-        Statement statement = connection.createStatement();
-        ResultSet resultSet = statement.executeQuery("SELECT * FROM product;");
+        PreparedStatement statement = connection.prepareStatement("SELECT * FROM product;");
+        ResultSet resultSet = statement.executeQuery();
 
         while (resultSet.next()) {
             productsData[index][0] = resultSet.getInt("id");
@@ -785,8 +792,8 @@ public class CRMDatabase implements AutoCloseable {
 
         statement.setInt(1, productId);
 
-        ResultSet resultSet = statement.executeQuery();
         int stock = -1;
+        ResultSet resultSet = statement.executeQuery();
 
         if (resultSet.next())
             stock = resultSet.getInt("stock");
@@ -806,7 +813,7 @@ public class CRMDatabase implements AutoCloseable {
      * @param productName must be a valid product name from the database.
      * @return the stock of the product if the product name is valid.
      * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
-     * @throws SQLException
+     * @throws SQLException if a database access error occurs.
      * @throws InvalidProductException if the product name is invalid.
      */
     public int getProductStock(String productName) throws CRMDBNotConnectedException,
@@ -922,7 +929,7 @@ public class CRMDatabase implements AutoCloseable {
     /**
      * Search product by name.
      * @return a two dimensional array of Object, containing the data for each product on a row.
-     * @param namePattern
+     * @param namePattern the pattern to look for.
      * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
      * @throws SQLException if a database access error occurs.
      * @throws InvalidProductException if no product was found.
@@ -959,5 +966,221 @@ public class CRMDatabase implements AutoCloseable {
             productsData[i] = products.get(i);
 
         return productsData;
+    }
+
+    /**
+     * Search for the best selling product.
+     * @return an uni-dimensional array of Object, containing the product data.
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException if a database access error occurs.
+     */
+    public Object[] getBestSellingProduct() throws CRMDBNotConnectedException, SQLException, InvalidProductException {
+        if (connection == null || connection.isClosed())
+            throw new CRMDBNotConnectedException();
+
+        String selectBestSellingProduct = "SELECT product_id, sum(quantity) AS quantity FROM invoice_product GROUP BY product_id;";
+        PreparedStatement statement = connection.prepareStatement(selectBestSellingProduct);
+        ResultSet resultSet = statement.executeQuery();
+
+        List<Object[]> data = new ArrayList<>();
+
+        while (resultSet.next()) {
+            Object[] rowData = new Object[2];
+            rowData[0] = resultSet.getInt("product_id");
+            rowData[1] = resultSet.getInt("quantity");
+            data.add(rowData);
+        }
+
+        resultSet.close();
+        statement.close();
+
+        int limit = data.size();
+        int max = Integer.MIN_VALUE;
+        int maxPos = -1;
+
+        for (int i = 0; i < limit; ++i) {
+            int value = (Integer)data.get(i)[1];
+
+            if (value > max) {
+                max = value;
+                maxPos = i;
+            }
+        }
+
+        return maxPos >= 0 ? getProduct((Integer) data.get(maxPos)[0]) : null;
+    }
+
+    /**
+     * Search for the best customer. The best customer is the one that earned us the most money.
+     * @return a string with the name of the best customer.
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException if a database access error occurs.
+     */
+    public String getBestCustomer() throws CRMDBNotConnectedException, SQLException {
+        if (connection == null || connection.isClosed())
+            throw new CRMDBNotConnectedException();
+
+        String selectBestCustomer = "SELECT customer_id, COUNT(customer_id) AS invoices FROM invoice GROUP BY customer_id;";
+        PreparedStatement statement = connection.prepareStatement(selectBestCustomer);
+        ResultSet resultSet = statement.executeQuery();
+
+        List<Object[]> data = new ArrayList<>();
+
+        while (resultSet.next()) {
+            Object[] rowData = new Object[2];
+            rowData[0] = resultSet.getInt("customer_id");
+            rowData[1] = resultSet.getInt("invoices");
+            data.add(rowData);
+        }
+
+        resultSet.close();
+        statement.close();
+
+        int limit = data.size();
+        int max = Integer.MIN_VALUE;
+        int maxPos = -1;
+
+        for (int i = 0; i < limit; ++i) {
+            int value = (Integer)data.get(i)[1];
+
+            if (value > max) {
+                max = value;
+                maxPos = i;
+            }
+        }
+
+        return maxPos >= 0 ? getCustomerName((Integer)data.get(maxPos)[0]) : null;
+    }
+
+    /**
+     * Get the no. of invoices for each customer and the total money we earned from them.
+     * @return a two-dimensional array containing the data about customers.
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException if a database access error occurs.
+     */
+    public Object[][] getCustomersPayments() throws CRMDBNotConnectedException, SQLException {
+        if (connection == null || connection.isClosed())
+            throw new CRMDBNotConnectedException();
+
+        String selectCustomersPayments =
+                "SELECT m.CustomerID, COUNT(m.InvoiceID) AS 'Invoices No.', sum(m.Price) AS 'Total earned from customer'\n" +
+                "FROM (SELECT i.customer_id AS 'CustomerID', ip.invoice_id AS 'InvoiceID', sum(ip.product_price * ip.quantity) AS 'Price'\n" +
+                "      FROM `invoice_product` ip JOIN `invoice` i ON (i.id = ip.invoice_id)\n" +
+                "      GROUP BY ip.invoice_id) m\n" +
+                "GROUP BY m.CustomerID;";
+
+        List<Object[]> data = new ArrayList<>();
+        PreparedStatement statement = connection.prepareStatement(selectCustomersPayments);
+        ResultSet resultSet = statement.executeQuery();
+
+        while (resultSet.next()) {
+            Object[] rowData = new Object[4];
+            rowData[0] = resultSet.getInt("CustomerID");
+            rowData[1] = getCustomerName((Integer)rowData[0]);
+            rowData[2] = resultSet.getInt("Invoices No.");
+            rowData[3] = resultSet.getDouble("Total earned from customer");
+            data.add(rowData);
+        }
+
+        resultSet.close();
+        statement.close();
+
+        if (data.isEmpty())
+            return null;
+
+        Object[][] rawData = new Object[data.size()][4];
+
+        for (int i = 0; i < data.size(); ++i)
+            rawData[i] = data.get(i);
+
+        return rawData;
+    }
+
+    /**
+     * Gets the name of a customer.
+     * @param customerId represents the id of the customer.
+     * @return the name of the customer. In case of an individual it is the concatenation between first name and last name.
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException if a database access error occurs.
+     */
+    private String getCustomerName(int customerId) throws CRMDBNotConnectedException, SQLException {
+        if (connection == null || connection.isClosed())
+            throw new CRMDBNotConnectedException();
+
+        String customerName = null;
+
+        String getIndividuals = "SELECT first_name, last_name FROM individual WHERE customer_id = ?;";
+        PreparedStatement statement = connection.prepareStatement(getIndividuals);
+
+        statement.setInt(1, customerId);
+
+        ResultSet resultSet = statement.executeQuery();
+
+        if (resultSet.next()) {
+            customerName = resultSet.getString("first_name");
+            customerName = customerName + " " + resultSet.getString("last_name");
+        }
+
+        resultSet.close();
+        statement.close();
+
+        if (customerName == null) {
+            statement = connection.prepareStatement("SELECT name FROM company WHERE customer_id = ?;");
+            statement.setInt(1, customerId);
+
+            resultSet = statement.executeQuery();
+
+            if (resultSet.next()) {
+                customerName = resultSet.getString("name");
+            }
+        }
+
+        return customerName;
+    }
+
+    /**
+     * Checks if an id represents a company.
+     * @param companyId
+     * @return true if the provided id is a company.
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException if a database access error occurs.
+     */
+    public boolean isCompany(int companyId) throws CRMDBNotConnectedException, SQLException {
+        if (connection == null || connection.isClosed())
+            throw new CRMDBNotConnectedException();
+
+        PreparedStatement statement = connection.prepareStatement("SELECT * FROM `company` WHERE `customer_id`=?;");
+
+        statement.setInt(1, companyId);
+        ResultSet resultSet = statement.executeQuery();
+        boolean isCompany = resultSet.next();
+
+        resultSet.close();
+        statement.close();
+
+        return isCompany;
+    }
+
+    /**
+     * Checks if an id represents an individual.
+     * @param individualId
+     * @return true if the provided id is an individual.
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException if a database access error occurs.
+     */
+    public boolean isIndividual(int individualId) throws CRMDBNotConnectedException, SQLException {
+        if (connection == null || connection.isClosed())
+            throw new CRMDBNotConnectedException();
+
+        PreparedStatement statement = connection.prepareStatement("SELECT * FROM `individual` WHERE `customer_id`=?;");
+
+        statement.setInt(1, individualId);
+        ResultSet resultSet = statement.executeQuery();
+        boolean isIndividual = resultSet.next();
+
+        resultSet.close();
+        statement.close();
+
+        return isIndividual;
     }
 }
