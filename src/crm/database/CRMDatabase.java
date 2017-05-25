@@ -960,4 +960,104 @@ public class CRMDatabase implements AutoCloseable {
 
         return productsData;
     }
+    public Object[] getBestSellProduct() throws SQLException, CRMDBNotConnectedException, InvalidProductException {
+        if (connection == null || connection.isClosed())
+            throw new CRMDBNotConnectedException();
+
+        PreparedStatement statement = connection.prepareStatement("SELECT product_id, sum(quantity) as quant FROM invoice_product " +
+                "group by product_id;");
+        ResultSet resultSet = statement.executeQuery();
+
+        ArrayList<Integer> quantities = new ArrayList<>();
+        ArrayList<Integer> ids = new ArrayList<>();
+
+        while (resultSet.next()) {
+            ids.add(resultSet.getInt("product_id"));
+            quantities.add(resultSet.getInt("quant"));
+        }
+
+        int limit = quantities.size();
+        int max = Integer.MIN_VALUE;
+        int maxPos = -1;
+        for (int i = 0; i < limit; i++) {
+            int value = quantities.get(i);
+            if (value > max) {
+                max = value;
+                maxPos = i;
+            }
+        }
+
+        if (maxPos >= 0) {
+            return getProduct(ids.get(maxPos));
+        } else {
+            return null;
+        }
+    }
+
+    public String getBiggestCustomer() throws SQLException, CRMDBNotConnectedException {
+        if (connection == null || connection.isClosed())
+            throw new CRMDBNotConnectedException();
+
+        PreparedStatement statement = connection.prepareStatement("SELECT customer_id, COUNT(customer_id) as invoices FROM invoice group by customer_id;");
+        ResultSet resultSet = statement.executeQuery();
+
+        String biggestCustomer = null;
+
+        ArrayList<Integer> ids = new ArrayList<>();
+        ArrayList<Integer> invoices = new ArrayList<>();
+
+        while (resultSet.next()) {
+            ids.add(resultSet.getInt("customer_id"));
+            invoices.add(resultSet.getInt("invoices"));
+        }
+
+        int limit = invoices.size();
+        int max = Integer.MIN_VALUE;
+        int maxPos = -1;
+        for (int i = 0; i < limit; i++) {
+            int value = invoices.get(i);
+            if (value > max) {
+                max = value;
+                maxPos = i;
+            }
+        }
+
+        if (maxPos >= 0) {
+            biggestCustomer = getCustomerById(ids.get(maxPos));
+        }
+
+        return biggestCustomer;
+    }
+
+    private String getCustomerById(int id) throws SQLException, CRMDBNotConnectedException {
+        if (connection == null || connection.isClosed())
+            throw new CRMDBNotConnectedException();
+
+        String customerName = null;
+
+        String getIndividuals = "SELECT first_name, last_name FROM individual WHERE customer_id = ?;";
+        PreparedStatement statement = connection.prepareStatement(getIndividuals);
+        statement.setInt(1, id);
+        ResultSet resultSet = statement.executeQuery();
+
+        while (resultSet.next()) {
+            customerName = resultSet.getString("first_name");
+            customerName = customerName + resultSet.getString("last_name");
+        }
+
+        if (customerName == null) {
+            String getCompanies = "SELECT name FROM company WHERE customer_id = ?;";
+            PreparedStatement statementC = connection.prepareStatement(getCompanies);
+            statementC.setInt(1, id);
+            ResultSet resultSet2 = statementC.executeQuery();
+
+            while (resultSet2.next()) {
+                customerName = resultSet2.getString("name");
+            }
+
+            return customerName;
+        }
+
+        return  customerName;
+    }
 }

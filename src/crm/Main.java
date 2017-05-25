@@ -1,5 +1,6 @@
 package crm;
 
+import crm.database.InvalidProductException;
 import crm.gui.*;
 import crm.database.CRMDatabase;
 import crm.database.CRMDBNotConnectedException;
@@ -14,6 +15,8 @@ public class Main {
             new ErrorWindow("SQLite3 database not connected.");
         } catch (SQLException exception) {
             new ErrorWindow(exception.getMessage(), true);
+        } catch (InvalidProductException e) {
+            e.printStackTrace();
         }
     }
 }

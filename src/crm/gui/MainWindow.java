@@ -86,6 +86,11 @@ public class MainWindow {
     private JButton createInvoiceButton;
     private JTable invoiceProductsTable;
     private JLabel availability;
+    private JLabel bestSellProd;
+    private JTable totalPaymentCustomers;
+    private JLabel biggestCustomer;
+    private JLabel totalCompanies;
+    private JLabel totalIndividuals;
     public static final Object[] invoiceProductsTableColumnsNames = {"ID", "Name", "Price", "Quantity"};
     private List<Product> invoiceProducts;
 
@@ -94,13 +99,22 @@ public class MainWindow {
         invoiceProducts = new ArrayList<>();
     }
 
-    public MainWindow(CRMDatabase database) throws SQLException, CRMDBNotConnectedException {
+    public MainWindow(CRMDatabase database) throws SQLException, CRMDBNotConnectedException, InvalidProductException {
         this.database = database;
 
         initiateAccountingTab();
         initiateDepositTab();
         initiateInvoiceTab();
         initiateMainFrame();
+        try {
+            initiateReportsTab();
+        } catch (InvalidProductException e) {
+            e.printStackTrace();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } catch (CRMDBNotConnectedException e) {
+            e.printStackTrace();
+        }
     }
 
     /**
@@ -175,6 +189,35 @@ public class MainWindow {
                 }
             }
         });
+    }
+
+    private void initiateReportsTab() throws InvalidProductException, SQLException, CRMDBNotConnectedException {
+        Object[] bestSellProduct = database.getBestSellProduct();
+        if (bestSellProduct == null) {
+            bestSellProd.setText("None product sell");
+        } else {
+            bestSellProd.setText(bestSellProduct[1].toString());
+        }
+
+        String bgCustomer = database.getBiggestCustomer();
+        if (bgCustomer == null) {
+            biggestCustomer.setText("None Customer");
+        } else {
+            biggestCustomer.setText(bgCustomer);
+        }
+
+        totalCompanies.setText("Input from all Companies");
+        //get all invoices which have a company as customer
+        //count their total price and display it
+
+        totalIndividuals.setText("Input from all Individuals");
+        //get all invoices which have a individual as customer
+        //count their total price and display it
+
+        //Fill totalPaymentCustomers table
+        //id-customer, name, invoices_number, total_money
+
+
     }
 
     /**
