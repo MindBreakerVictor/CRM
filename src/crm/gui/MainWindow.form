@@ -287,7 +287,7 @@
                       </tabbedpane>
                     </children>
                   </grid>
-                  <grid id="4e57b" layout-manager="GridLayoutManager" row-count="5" column-count="4" same-size-horizontally="false" same-size-vertically="false" hgap="-1" vgap="-1">
+                  <grid id="4e57b" layout-manager="GridLayoutManager" row-count="6" column-count="4" same-size-horizontally="false" same-size-vertically="false" hgap="-1" vgap="-1">
                     <margin top="0" left="0" bottom="0" right="0"/>
                     <constraints>
                       <tabbedpane title="Invoices"/>
@@ -313,13 +313,13 @@
                       </component>
                       <component id="97132" class="javax.swing.JLabel">
                         <constraints>
-                          <grid row="4" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="0" anchor="4" fill="0" indent="0" use-parent-layout="false"/>
+                          <grid row="5" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="0" anchor="4" fill="0" indent="0" use-parent-layout="false"/>
                         </constraints>
                         <properties>
                           <text value="Invoices list:"/>
                         </properties>
                       </component>
-                      <component id="21c3d" class="javax.swing.JTextField" default-binding="true">
+                      <component id="21c3d" class="javax.swing.JTextField" binding="searchByUidInvoice">
                         <constraints>
                           <grid row="2" column="1" row-span="1" col-span="3" vsize-policy="0" hsize-policy="6" anchor="8" fill="1" indent="0" use-parent-layout="false">
                             <preferred-size width="150" height="-1"/>
@@ -329,12 +329,12 @@
                       </component>
                       <scrollpane id="c6443">
                         <constraints>
-                          <grid row="4" column="2" row-span="1" col-span="2" vsize-policy="7" hsize-policy="7" anchor="0" fill="3" indent="0" use-parent-layout="false"/>
+                          <grid row="5" column="2" row-span="1" col-span="2" vsize-policy="7" hsize-policy="7" anchor="0" fill="3" indent="0" use-parent-layout="false"/>
                         </constraints>
                         <properties/>
                         <border type="none"/>
                         <children>
-                          <component id="3efb2" class="javax.swing.JTextArea" default-binding="true">
+                          <component id="ad03f" class="javax.swing.JTable" binding="invoicesTable">
                             <constraints/>
                             <properties/>
                           </component>
@@ -345,10 +345,10 @@
                           <grid row="3" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="0" anchor="4" fill="0" indent="0" use-parent-layout="false"/>
                         </constraints>
                         <properties>
-                          <text value="Search by date:"/>
+                          <text value="Search by date: [Y-M-D]"/>
                         </properties>
                       </component>
-                      <component id="85830" class="javax.swing.JTextField" default-binding="true">
+                      <component id="85830" class="javax.swing.JTextField" binding="searchByDate">
                         <constraints>
                           <grid row="3" column="1" row-span="1" col-span="3" vsize-policy="0" hsize-policy="6" anchor="8" fill="1" indent="0" use-parent-layout="false">
                             <preferred-size width="150" height="-1"/>
@@ -356,13 +356,7 @@
                         </constraints>
                         <properties/>
                       </component>
-                      <component id="feff9" class="javax.swing.JComboBox" default-binding="true">
-                        <constraints>
-                          <grid row="4" column="1" row-span="1" col-span="1" vsize-policy="0" hsize-policy="2" anchor="8" fill="1" indent="0" use-parent-layout="false"/>
-                        </constraints>
-                        <properties/>
-                      </component>
-                      <component id="befcf" class="javax.swing.JButton" default-binding="true">
+                      <component id="befcf" class="javax.swing.JButton" binding="listAllInvoices">
                         <constraints>
                           <grid row="0" column="1" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
                         </constraints>
@@ -370,29 +364,47 @@
                           <text value="List all invoices"/>
                         </properties>
                       </component>
-                      <component id="3e0da" class="javax.swing.JButton" default-binding="true">
+                      <component id="3e0da" class="javax.swing.JButton" binding="listCompaniesInvoices">
                         <constraints>
                           <grid row="0" column="2" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
                         </constraints>
                         <properties>
+                          <enabled value="true"/>
                           <text value="List companies invoices"/>
                         </properties>
                       </component>
-                      <component id="40e87" class="javax.swing.JButton" default-binding="true">
+                      <component id="40e87" class="javax.swing.JButton" binding="listIndividualsInvoices">
                         <constraints>
                           <grid row="0" column="3" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
                         </constraints>
                         <properties>
+                          <enabled value="true"/>
                           <text value="List individuals invoices"/>
                         </properties>
                       </component>
-                      <component id="e8b2f" class="javax.swing.JTextField" default-binding="true">
+                      <component id="e8b2f" class="javax.swing.JTextField" binding="searchByCustomerName">
                         <constraints>
                           <grid row="1" column="1" row-span="1" col-span="3" vsize-policy="0" hsize-policy="6" anchor="8" fill="1" indent="0" use-parent-layout="false">
                             <preferred-size width="150" height="-1"/>
                           </grid>
                         </constraints>
                         <properties/>
+                      </component>
+                      <component id="82b5b" class="javax.swing.JButton" binding="searchInvoices">
+                        <constraints>
+                          <grid row="4" column="2" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
+                        </constraints>
+                        <properties>
+                          <text value="Search"/>
+                        </properties>
+                      </component>
+                      <component id="feff9" class="javax.swing.JComboBox" binding="invoicesDropDownList">
+                        <constraints>
+                          <grid row="5" column="1" row-span="1" col-span="1" vsize-policy="0" hsize-policy="2" anchor="8" fill="1" indent="0" use-parent-layout="false"/>
+                        </constraints>
+                        <properties>
+                          <model/>
+                        </properties>
                       </component>
                     </children>
                   </grid>

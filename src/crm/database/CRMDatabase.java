@@ -1,5 +1,6 @@
 package crm.database;
 
+import com.sun.org.apache.regexp.internal.RE;
 import crm.data.*;
 import crm.gui.MainWindow;
 
@@ -1149,7 +1150,7 @@ public class CRMDatabase implements AutoCloseable {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
-        PreparedStatement statement = connection.prepareStatement("SELECT * FROM `company` WHERE `customer_id`=?;");
+        PreparedStatement statement = connection.prepareStatement("SELECT * FROM `company` WHERE customer_id = ?;");
 
         statement.setInt(1, companyId);
         ResultSet resultSet = statement.executeQuery();
@@ -1172,7 +1173,7 @@ public class CRMDatabase implements AutoCloseable {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
-        PreparedStatement statement = connection.prepareStatement("SELECT * FROM `individual` WHERE `customer_id`=?;");
+        PreparedStatement statement = connection.prepareStatement("SELECT * FROM `individual` WHERE customer_id = ?;");
 
         statement.setInt(1, individualId);
         ResultSet resultSet = statement.executeQuery();
@@ -1182,5 +1183,328 @@ public class CRMDatabase implements AutoCloseable {
         statement.close();
 
         return isIndividual;
+    }
+
+    /**
+     * Get an Object with the data of an Invoice by an UID
+     * @param invoiceUID
+     * @return Object[3] if the UID is valid and null otherwise.
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException if a database access error occurs.
+     */
+    public Object[] getInvoiceByUid(int invoiceUID) throws CRMDBNotConnectedException, SQLException {
+        if (connection == null || connection.isClosed())
+            throw new CRMDBNotConnectedException();
+
+        Object[] invoice = null;
+
+        PreparedStatement statement = connection.prepareStatement("SELECT * FROM 'invoice' WHERE id = ?;");
+
+        statement.setInt(1, invoiceUID);
+        ResultSet resultSet = statement.executeQuery();
+
+        if (resultSet.next()) {
+            invoice = new Object[3];
+            invoice[0] = resultSet.getInt("id");
+            invoice[1] = resultSet.getInt("customer_id");
+            invoice[2] = resultSet.getString("date");
+        }
+
+        resultSet.close();
+        statement.close();
+
+        return invoice;
+    }
+
+    /**
+     * Get multiple Objects with the data of invoices by an customer ID
+     * @param customerName
+     * @return Object[][3] if the customerID is valid and null otherwise.
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException if a database access error occurs.
+     */
+    public Object[][] getInvoicesByCustomerName(String customerName) throws CRMDBNotConnectedException, SQLException {
+        if (connection == null || connection.isClosed())
+            throw new CRMDBNotConnectedException();
+
+        int customerID = getCustomerIdByName(customerName);
+
+        ArrayList<Object[]> data = new ArrayList<>();
+
+        PreparedStatement statement = connection.prepareStatement("SELECT * FROM 'invoice' WHERE customer_id = ?;");
+
+        statement.setInt(1, customerID);
+        ResultSet resultSet = statement.executeQuery();
+
+        if (resultSet.next()) {
+            Object[] invoice = new Object[3];
+            invoice[0] = resultSet.getInt("id");
+            invoice[1] = resultSet.getInt("customer_id");
+            invoice[2] = resultSet.getString("date");
+            data.add(invoice);
+        }
+
+        resultSet.close();
+        statement.close();
+
+        if (data.isEmpty())
+            return null;
+
+        Object[][] invoices = new Object[data.size()][3];
+
+        for (int i = 0; i < data.size(); ++i)
+            invoices[i] = data.get(i);
+
+        return invoices;
+    }
+
+    /**
+     * Get the ID of a customer, searching by his name
+     * @param customerName
+     * @return int if the customerID is valid and -1 otherwise.
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException if a database access error occurs.
+     */
+    public int getCustomerIdByName(String customerName) throws SQLException, CRMDBNotConnectedException {
+        if (connection == null || connection.isClosed())
+            throw new CRMDBNotConnectedException();
+
+        int customerId = -1;
+
+        String getIndividuals = "SELECT customer_id FROM 'individual' WHERE first_name = ? OR last_name = ?;";
+        PreparedStatement statement = connection.prepareStatement(getIndividuals);
+
+        statement.setString(1, customerName);
+        statement.setString(2, customerName);
+
+        ResultSet resultSet = statement.executeQuery();
+
+        if (resultSet.next()) {
+            customerId= resultSet.getInt("customer_id");
+        }
+
+        resultSet.close();
+        statement.close();
+
+        if (customerName == null) {
+            statement = connection.prepareStatement("SELECT customer_id FROM 'company' WHERE name = ?;");
+            statement.setString(1, customerName);
+
+            resultSet = statement.executeQuery();
+
+            if (resultSet.next()) {
+                customerId= resultSet.getInt("customer_id");
+            }
+
+            resultSet.close();
+            statement.close();
+        }
+
+        return customerId;
+    }
+
+    /**
+     * Get multiple Objects with the data of invoices by date
+     * @param date
+     * @return Object[][3] if the customerID is valid and null otherwise.
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException if a database access error occurs.
+     */
+    public Object[][] getInvoicesByDate(String date) throws SQLException, CRMDBNotConnectedException {
+        if (connection == null || connection.isClosed())
+            throw new CRMDBNotConnectedException();
+
+        ArrayList<Object[]> data = new ArrayList<>();
+
+        PreparedStatement statement = connection.prepareStatement("SELECT * FROM 'invoice' WHERE date LIKE ?;");
+
+        statement.setString(1, '%' + date + '%');
+        ResultSet resultSet = statement.executeQuery();
+
+        while (resultSet.next()) {
+            Object[] invoice = new Object[3];
+            invoice[0] = resultSet.getInt("id");
+            invoice[1] = resultSet.getInt("customer_id");
+            invoice[2] = resultSet.getString("date");
+            data.add(invoice);
+        }
+
+        resultSet.close();
+        statement.close();
+
+        if (data.isEmpty())
+            return null;
+
+        Object[][] invoices = new Object[data.size()][3];
+
+        for (int i = 0; i < data.size(); ++i)
+            invoices[i] = data.get(i);
+
+        return invoices;
+    }
+
+    /**
+     * Get all the invoices as Object[][]
+     * @return Object[][]
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException if a database access error occurs.
+     */
+    public Object[][] getInvoices() throws SQLException, CRMDBNotConnectedException {
+        if (connection == null || connection.isClosed())
+            throw new CRMDBNotConnectedException();
+
+        ArrayList<Object[]> data = new ArrayList<>();
+
+        PreparedStatement statement = connection.prepareStatement("SELECT * FROM 'invoice';");
+
+        ResultSet resultSet = statement.executeQuery();
+
+        while (resultSet.next()) {
+            Object[] invoice = new Object[3];
+            invoice[0] = resultSet.getInt("id");
+            invoice[1] = resultSet.getInt("customer_id");
+            invoice[2] = resultSet.getString("date");
+            data.add(invoice);
+        }
+
+        resultSet.close();
+        statement.close();
+
+        if (data.isEmpty())
+            return null;
+
+        Object[][] invoices = new Object[data.size()][3];
+
+        for (int i = 0; i < data.size(); ++i)
+            invoices[i] = data.get(i);
+
+        return invoices;
+    }
+
+    /**
+     * Get all the invoices for companies as Object[][]
+     * @return Object[][]
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException if a database access error occurs.
+     */
+    public Object[][] getCompaniesInvoices() throws SQLException, CRMDBNotConnectedException {
+        if (connection == null || connection.isClosed())
+            throw new CRMDBNotConnectedException();
+
+        ArrayList<Object[]> data = new ArrayList<>();
+
+        PreparedStatement statement = connection.prepareStatement("SELECT inv.id, inv.customer_id, inv.date \n" +
+                "FROM  'invoice' inv JOIN  'individual' i ON (inv.customer_id = i.customer_id) \n" +
+                "JOIN  'company' c ON (inv.customer_id = c.Customer_id)\n" +
+                "WHERE inv.customer_id = c.customer_id;");
+
+        //TODO Fix the bug. The query doesn't return anything
+
+        ResultSet resultSet = statement.executeQuery();
+
+        while (resultSet.next()) {
+            Object[] invoice = new Object[3];
+            invoice[0] = resultSet.getInt("id");
+            invoice[1] = resultSet.getInt("customer_id");
+            invoice[2] = resultSet.getString("date");
+            data.add(invoice);
+        }
+
+        resultSet.close();
+        statement.close();
+
+        if (data.isEmpty())
+            return null;
+
+        Object[][] invoices = new Object[data.size()][3];
+
+        for (int i = 0; i < data.size(); ++i)
+            invoices[i] = data.get(i);
+
+        return invoices;
+    }
+
+    /**
+     * Get all the invoices for individuals as Object[][]
+     * @return Object[][]
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException if a database access error occurs.
+     */
+    public Object[][] getIndividualsInvoices() throws SQLException, CRMDBNotConnectedException {
+        if (connection == null || connection.isClosed())
+            throw new CRMDBNotConnectedException();
+
+        ArrayList<Object[]> data = new ArrayList<>();
+
+        PreparedStatement statement = connection.prepareStatement("SELECT inv.id, inv.customer_id, inv.date \n" +
+                "FROM  'invoice' inv JOIN  'individual' i ON (inv.customer_id = i.customer_id) \n" +
+                "JOIN  'company' c ON (inv.customer_id = c.Customer_id)\n" +
+                "WHERE inv.customer_id = i.customer_id;");
+
+        //TODO Fix the bug. The query doesn't return anything
+
+        ResultSet resultSet = statement.executeQuery();
+
+        while (resultSet.next()) {
+            Object[] invoice = new Object[3];
+            invoice[0] = resultSet.getInt("id");
+            invoice[1] = resultSet.getInt("customer_id");
+            invoice[2] = resultSet.getString("date");
+            data.add(invoice);
+        }
+
+        resultSet.close();
+        statement.close();
+
+        if (data.isEmpty())
+            return null;
+
+        Object[][] invoices = new Object[data.size()][3];
+
+        for (int i = 0; i < data.size(); ++i)
+            invoices[i] = data.get(i);
+
+        return invoices;
+    }
+
+    /**
+     * Get all the products from the invoice with the specified parameter as Object[][]
+     * @param invoiceUID
+     * @return Object[][]
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException if a database access error occurs.
+     */
+    public Object[][] getProductsOfInvoice(int invoiceUID) throws SQLException, CRMDBNotConnectedException {
+        if (connection == null || connection.isClosed())
+            throw new CRMDBNotConnectedException();
+
+        ArrayList<Object[]> data = new ArrayList<>();
+
+        PreparedStatement statement = connection.prepareStatement("SELECT * FROM 'invoice_product' WHERE invoice_id = ?;");
+        statement.setInt(1, invoiceUID);
+
+        ResultSet resultSet = statement.executeQuery();
+
+        while (resultSet.next()) {
+            Object[] product = new Object[4];
+            product[0] = resultSet.getInt("invoice_id");
+            product[1] = resultSet.getInt("product_id");
+            product[2] = resultSet.getDouble("product_price");
+            product[3] = resultSet.getInt("quantity");
+            data.add(product);
+        }
+
+        resultSet.close();
+        statement.close();
+
+        if (data.isEmpty())
+            return null;
+
+        Object[][] products = new Object[data.size()][4];
+
+        for (int i = 0; i < data.size(); ++i)
+            products[i] = data.get(i);
+
+        return products;
     }
 }

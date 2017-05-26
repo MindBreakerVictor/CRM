@@ -3,6 +3,8 @@ package crm.gui;
 import crm.data.*;
 import crm.database.*;
 
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.util.List;
 import java.util.ArrayList;
 
@@ -86,8 +88,20 @@ public class MainWindow {
     private JButton createInvoiceButton;
     private JTable invoiceProductsTable;
     private JButton clearInvoiceButton;
+    private JButton searchInvoices;
+    private JTextField searchByCustomerName;
+    private JTextField searchByUidInvoice;
+    private JTextField searchByDate;
+    private JTable invoicesTable;
+    private JComboBox invoicesDropDownList;
+    private JButton listAllInvoices;
+    private JButton listCompaniesInvoices;
+    private JButton listIndividualsInvoices;
     public static final Object[] invoiceProductsTableColumnsNames = {"ID", "Name", "Price", "Quantity" };
+    public static final Object[] invoiceDisplayTableColumnsNames = {"UID", "Id Product", "Price", "Quantity" };
     private List<Product> invoiceProducts;
+
+    private static Object[][] invoices = null;
 
     {
         frame = new JFrame("Customer Relationship Management");
@@ -363,7 +377,142 @@ public class MainWindow {
      * Initiate the Invoices sub tab of Accounting tab.
      */
     private void initiateInvoicesTab() {
-        // TODO
+        updateInvoiceDropDownList(false);
+
+        listAllInvoices.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent actionEvent) {
+                updateInvoiceDropDownList(false);
+            }
+        });
+
+        listCompaniesInvoices.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent actionEvent) {
+                try {
+
+                    invoices = database.getCompaniesInvoices();
+
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                } catch (CRMDBNotConnectedException e) {
+                    e.printStackTrace();
+                }
+                updateInvoiceDropDownList(true);
+            }
+        });
+
+
+        listIndividualsInvoices.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent actionEvent) {
+                try {
+
+                    invoices = database.getIndividualsInvoices();
+
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                } catch (CRMDBNotConnectedException e) {
+                    e.printStackTrace();
+                }
+                updateInvoiceDropDownList(true);
+            }
+        });
+
+        invoicesDropDownList.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent actionEvent) {
+                updateInvoiceTable();
+            }
+        });
+
+        searchInvoices.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent actionEvent) {
+                if (searchByUidInvoice.getText().equals("") && searchByCustomerName.getText().equals("") && searchByDate.getText().equals("")) {
+                    updateInvoiceDropDownList(false);
+                } else {
+                    if (!searchByUidInvoice.getText().equals("")) {
+                        try {
+
+                            Object[] result = database.getInvoiceByUid(Integer.parseInt(searchByUidInvoice.getText()));
+                            if (result != null) {
+                                invoices = new Object[1][3];
+                                invoices[0] = result;
+                            } else
+                                invoices = null;
+
+                        } catch (CRMDBNotConnectedException e) {
+                            e.printStackTrace();
+                        } catch (SQLException e) {
+                            e.printStackTrace();
+                        }
+                    } else {
+                        if (!searchByCustomerName.getText().equals("")) {
+                            try {
+
+                                Object[][] result = database.getInvoicesByCustomerName(searchByCustomerName.getText());
+                                invoices = result;
+
+                            } catch (CRMDBNotConnectedException e) {
+                                e.printStackTrace();
+                            } catch (SQLException e) {
+                                e.printStackTrace();
+                            }
+                        } else {
+                            if (!searchByDate.getText().equals("")) {
+                                try {
+
+                                    Object[][] result = database.getInvoicesByDate(searchByDate.getText());
+                                    invoices = result;
+
+                                } catch (SQLException e) {
+                                    e.printStackTrace();
+                                } catch (CRMDBNotConnectedException e) {
+                                    e.printStackTrace();
+                                }
+                            }
+                        }
+                    }
+                    updateInvoiceDropDownList(true);
+                    updateInvoiceTable();
+                }
+            }
+        });
+    }
+
+    /**
+     * Update the Invoice Table after search
+     */
+    private void updateInvoiceTable() {
+        invoicesTable.getTableHeader().setReorderingAllowed(false);
+
+        try {
+
+            Object toListInvoice = invoicesDropDownList.getSelectedItem();
+            if (toListInvoice != null) {
+
+                String toListInvoiceUid = toListInvoice.toString().substring(3, toListInvoice.toString().indexOf("Date") - 2);
+                Object[][] data = database.getProductsOfInvoice(Integer.parseInt(toListInvoiceUid));
+
+                DefaultTableModel tableModel = data == null ? new DefaultTableModel(invoiceDisplayTableColumnsNames, 0) :
+                        new DefaultTableModel(data, invoiceDisplayTableColumnsNames) {
+                            @Override
+                            public boolean isCellEditable(int row, int column) {
+                                return false;
+                            }
+                        };
+
+                invoicesTable.setModel(tableModel);
+            } else {
+                invoicesTable.removeAll();
+            }
+
+        } catch (CRMDBNotConnectedException exception) {
+            new ErrorWindow("SQLite3 database disconnected.");
+        } catch (SQLException exception) {
+            new ErrorWindow("SQL error: " + exception.getMessage());
+        }
     }
 
     /**
@@ -693,6 +842,28 @@ public class MainWindow {
             new ErrorWindow("SQLite3 database disconnected.");
         } catch (SQLException exception) {
             new ErrorWindow("SQL error: " + exception.getMessage());
+        }
+    }
+
+    /**
+     * Update invoices drop down list(combo box) from Invoices tab.
+     */
+    private void updateInvoiceDropDownList(boolean filtering) {
+        invoicesDropDownList.removeAllItems();
+
+        if (!filtering) {
+            try {
+                invoices = database.getInvoices();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            } catch (CRMDBNotConnectedException e) {
+                e.printStackTrace();
+            }
+        }
+        if (invoices != null) {
+            for (Object[] i : invoices) {
+                invoicesDropDownList.addItem("Id:" + i[0] + "  Date:" + i[2].toString().substring(0, 10));
+            }
         }
     }
 }
