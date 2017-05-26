@@ -3,8 +3,6 @@ package crm.gui;
 import crm.data.*;
 import crm.database.*;
 
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.util.List;
 import java.util.ArrayList;
 
@@ -379,56 +377,35 @@ public class MainWindow {
     private void initiateInvoicesTab() {
         updateInvoiceDropDownList(false);
 
-        listAllInvoices.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent actionEvent) {
-                updateInvoiceDropDownList(false);
-            }
-        });
+        listAllInvoices.addActionListener(e -> { updateInvoiceDropDownList(false); });
 
-        listCompaniesInvoices.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent actionEvent) {
+        listCompaniesInvoices.addActionListener(e -> {
                 try {
-
                     invoices = database.getCompaniesInvoices();
-
-                } catch (SQLException e) {
-                    e.printStackTrace();
-                } catch (CRMDBNotConnectedException e) {
-                    e.printStackTrace();
+                } catch (SQLException exception) {
+                    exception.printStackTrace();
+                } catch (CRMDBNotConnectedException exception) {
+                    exception.printStackTrace();
                 }
                 updateInvoiceDropDownList(true);
-            }
         });
 
 
-        listIndividualsInvoices.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent actionEvent) {
+        listIndividualsInvoices.addActionListener(e -> {
                 try {
-
                     invoices = database.getIndividualsInvoices();
-
-                } catch (SQLException e) {
-                    e.printStackTrace();
-                } catch (CRMDBNotConnectedException e) {
-                    e.printStackTrace();
+                } catch (SQLException exception) {
+                    exception.printStackTrace();
+                } catch (CRMDBNotConnectedException exception) {
+                    exception.printStackTrace();
                 }
+
                 updateInvoiceDropDownList(true);
-            }
         });
 
-        invoicesDropDownList.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent actionEvent) {
-                updateInvoiceTable();
-            }
-        });
+        invoicesDropDownList.addActionListener(e -> updateInvoiceTable() );
 
-        searchInvoices.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent actionEvent) {
+        searchInvoices.addActionListener(e -> {
                 if (searchByUidInvoice.getText().equals("") && searchByCustomerName.getText().equals("") && searchByDate.getText().equals("")) {
                     updateInvoiceDropDownList(false);
                 } else {
@@ -442,10 +419,10 @@ public class MainWindow {
                             } else
                                 invoices = null;
 
-                        } catch (CRMDBNotConnectedException e) {
-                            e.printStackTrace();
-                        } catch (SQLException e) {
-                            e.printStackTrace();
+                        } catch (CRMDBNotConnectedException exception) {
+                            exception.printStackTrace();
+                        } catch (SQLException exception) {
+                            exception.printStackTrace();
                         }
                     } else {
                         if (!searchByCustomerName.getText().equals("")) {
@@ -454,10 +431,10 @@ public class MainWindow {
                                 Object[][] result = database.getInvoicesByCustomerName(searchByCustomerName.getText());
                                 invoices = result;
 
-                            } catch (CRMDBNotConnectedException e) {
-                                e.printStackTrace();
-                            } catch (SQLException e) {
-                                e.printStackTrace();
+                            } catch (CRMDBNotConnectedException exception) {
+                                exception.printStackTrace();
+                            } catch (SQLException exception) {
+                                exception.printStackTrace();
                             }
                         } else {
                             if (!searchByDate.getText().equals("")) {
@@ -466,10 +443,10 @@ public class MainWindow {
                                     Object[][] result = database.getInvoicesByDate(searchByDate.getText());
                                     invoices = result;
 
-                                } catch (SQLException e) {
-                                    e.printStackTrace();
-                                } catch (CRMDBNotConnectedException e) {
-                                    e.printStackTrace();
+                                } catch (SQLException exception) {
+                                    exception.printStackTrace();
+                                } catch (CRMDBNotConnectedException exception) {
+                                    exception.printStackTrace();
                                 }
                             }
                         }
@@ -477,7 +454,6 @@ public class MainWindow {
                     updateInvoiceDropDownList(true);
                     updateInvoiceTable();
                 }
-            }
         });
     }
 

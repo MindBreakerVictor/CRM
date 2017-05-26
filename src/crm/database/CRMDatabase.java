@@ -1,6 +1,5 @@
 package crm.database;
 
-import com.sun.org.apache.regexp.internal.RE;
 import crm.data.*;
 import crm.gui.MainWindow;
 
@@ -1394,11 +1393,7 @@ public class CRMDatabase implements AutoCloseable {
         ArrayList<Object[]> data = new ArrayList<>();
 
         PreparedStatement statement = connection.prepareStatement("SELECT inv.id, inv.customer_id, inv.date \n" +
-                "FROM  'invoice' inv JOIN  'individual' i ON (inv.customer_id = i.customer_id) \n" +
-                "JOIN  'company' c ON (inv.customer_id = c.Customer_id)\n" +
-                "WHERE inv.customer_id = c.customer_id;");
-
-        //TODO Fix the bug. The query doesn't return anything
+                "FROM  'invoice' inv JOIN  'company' c ON (inv.customer_id = c.Customer_id);");
 
         ResultSet resultSet = statement.executeQuery();
 
@@ -1437,11 +1432,7 @@ public class CRMDatabase implements AutoCloseable {
         ArrayList<Object[]> data = new ArrayList<>();
 
         PreparedStatement statement = connection.prepareStatement("SELECT inv.id, inv.customer_id, inv.date \n" +
-                "FROM  'invoice' inv JOIN  'individual' i ON (inv.customer_id = i.customer_id) \n" +
-                "JOIN  'company' c ON (inv.customer_id = c.Customer_id)\n" +
-                "WHERE inv.customer_id = i.customer_id;");
-
-        //TODO Fix the bug. The query doesn't return anything
+                "FROM  'invoice' inv JOIN  'individual' i ON (inv.customer_id = i.customer_id);");
 
         ResultSet resultSet = statement.executeQuery();
 
