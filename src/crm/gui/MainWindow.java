@@ -52,6 +52,17 @@ public class MainWindow {
             "Headquarters Address", "Delivery Address", "Contact Number" };
 
     // b. Invoices tab
+    private JButton searchInvoices;
+    private JTextField searchByCustomerName;
+    private JTextField searchByUidInvoice;
+    private JTextField searchByDate;
+    private JTable invoicesTable;
+    private JComboBox<String> invoicesDropDownList;
+    private JButton listAllInvoices;
+    private JButton listCompaniesInvoices;
+    private JButton listIndividualsInvoices;
+    private static Object[][] invoices = null;
+    public static final Object[] invoiceDisplayTableColumnsNames = { "UID", "Id Product", "Price", "Quantity" };
 
     // c. Reports tab
     private JLabel bestSellProd;
@@ -86,20 +97,8 @@ public class MainWindow {
     private JButton createInvoiceButton;
     private JTable invoiceProductsTable;
     private JButton clearInvoiceButton;
-    private JButton searchInvoices;
-    private JTextField searchByCustomerName;
-    private JTextField searchByUidInvoice;
-    private JTextField searchByDate;
-    private JTable invoicesTable;
-    private JComboBox invoicesDropDownList;
-    private JButton listAllInvoices;
-    private JButton listCompaniesInvoices;
-    private JButton listIndividualsInvoices;
     public static final Object[] invoiceProductsTableColumnsNames = {"ID", "Name", "Price", "Quantity" };
-    public static final Object[] invoiceDisplayTableColumnsNames = {"UID", "Id Product", "Price", "Quantity" };
     private List<Product> invoiceProducts;
-
-    private static Object[][] invoices = null;
 
     {
         frame = new JFrame("Customer Relationship Management");
@@ -188,76 +187,6 @@ public class MainWindow {
                 }
             }
         });
-    }
-
-    private void initiateReportsTab() {
-        updateReportsTable();
-
-        try {
-            Object[] bestSellProduct = database.getBestSellingProduct();
-
-            if (bestSellProduct == null)
-                bestSellProd.setText("No data available.");
-            else
-                bestSellProd.setText(bestSellProduct[1].toString());
-
-            String bgCustomer = database.getBestCustomer();
-
-            if (bgCustomer == null)
-                biggestCustomer.setText("No data available.");
-            else
-                biggestCustomer.setText(bgCustomer);
-        } catch (CRMDBNotConnectedException exception) {
-            new ErrorWindow("SQLite3 database disconnected.");
-        } catch (SQLException exception) {
-            new ErrorWindow("SQL error: " + exception.getMessage());
-        } catch (InvalidProductException exception) {
-            new ErrorWindow("CRMDatabase.getProduct received an invalid id as parameter in CRMDatabase.getBestSellingProduct.");
-        }
-    }
-
-    private void updateReportsTable() {
-        try {
-            Object[][] data = database.getCustomersPayments();
-
-            DefaultTableModel tableModel = data == null ? new DefaultTableModel(reportsTableColumnNames, 0) :
-                    new DefaultTableModel(data, reportsTableColumnNames) {
-                        @Override public boolean isCellEditable(int row, int column) { return false; }
-                    };
-
-            reportsTable.setModel(tableModel);
-            updateTotalEarnings(data);
-        } catch (CRMDBNotConnectedException exception) {
-            new ErrorWindow("SQLite3 database disconnected.");
-        } catch (SQLException exception) {
-            new ErrorWindow("SQL error: " + exception.getMessage());
-        }
-    }
-
-    private void updateTotalEarnings(Object[][] data) {
-        Double totalEarnedFromCompanies = 0.0;
-        Double totalEarnedFromIndividuals = 0.0;
-
-        totalIndividuals.setText(Double.toString(totalEarnedFromIndividuals));
-        totalCompanies.setText(Double.toString(totalEarnedFromCompanies));
-
-        if (data == null)
-            return;
-
-        try {
-            for (Object[] rowData : data)
-                if (database.isCompany((Integer) rowData[0]))
-                    totalEarnedFromCompanies += (Double) rowData[3];
-                else if (database.isIndividual((Integer) rowData[0]))
-                    totalEarnedFromIndividuals += (Double) rowData[3];
-
-            totalIndividuals.setText(Double.toString(totalEarnedFromIndividuals));
-            totalCompanies.setText(Double.toString(totalEarnedFromCompanies));
-        } catch (CRMDBNotConnectedException exception) {
-            new ErrorWindow("SQLite3 database disconnected.");
-        } catch (SQLException exception) {
-            new ErrorWindow("SQL error: " + exception.getMessage());
-        }
     }
 
     /**
@@ -372,102 +301,165 @@ public class MainWindow {
     }
 
     /**
+     * Initiate Reports sub tab of Accounting tab.
+     */
+    private void initiateReportsTab() {
+        updateReportsTable();
+
+        try {
+            Object[] bestSellProduct = database.getBestSellingProduct();
+
+            if (bestSellProduct == null)
+                bestSellProd.setText("No data available.");
+            else
+                bestSellProd.setText(bestSellProduct[1].toString());
+
+            String bgCustomer = database.getBestCustomer();
+
+            if (bgCustomer == null)
+                biggestCustomer.setText("No data available.");
+            else
+                biggestCustomer.setText(bgCustomer);
+        } catch (CRMDBNotConnectedException exception) {
+            new ErrorWindow("SQLite3 database disconnected.");
+        } catch (SQLException exception) {
+            new ErrorWindow("SQL error: " + exception.getMessage());
+        } catch (InvalidProductException exception) {
+            new ErrorWindow("CRMDatabase.getProduct received an invalid id as parameter in CRMDatabase.getBestSellingProduct.");
+        }
+    }
+
+    private void updateReportsTable() {
+        try {
+            Object[][] data = database.getCustomersPayments();
+
+            DefaultTableModel tableModel = data == null ? new DefaultTableModel(reportsTableColumnNames, 0) :
+                    new DefaultTableModel(data, reportsTableColumnNames) {
+                        @Override public boolean isCellEditable(int row, int column) { return false; }
+                    };
+
+            reportsTable.setModel(tableModel);
+            updateTotalEarnings(data);
+        } catch (CRMDBNotConnectedException exception) {
+            new ErrorWindow("SQLite3 database disconnected.");
+        } catch (SQLException exception) {
+            new ErrorWindow("SQL error: " + exception.getMessage());
+        }
+    }
+
+    private void updateTotalEarnings(Object[][] data) {
+        Double totalEarnedFromCompanies = 0.0;
+        Double totalEarnedFromIndividuals = 0.0;
+
+        totalIndividuals.setText(Double.toString(totalEarnedFromIndividuals));
+        totalCompanies.setText(Double.toString(totalEarnedFromCompanies));
+
+        if (data == null)
+            return;
+
+        try {
+            for (Object[] rowData : data)
+                if (database.isCompany((Integer) rowData[0]))
+                    totalEarnedFromCompanies += (Double) rowData[3];
+                else if (database.isIndividual((Integer) rowData[0]))
+                    totalEarnedFromIndividuals += (Double) rowData[3];
+
+            totalIndividuals.setText(Double.toString(totalEarnedFromIndividuals));
+            totalCompanies.setText(Double.toString(totalEarnedFromCompanies));
+        } catch (CRMDBNotConnectedException exception) {
+            new ErrorWindow("SQLite3 database disconnected.");
+        } catch (SQLException exception) {
+            new ErrorWindow("SQL error: " + exception.getMessage());
+        }
+    }
+
+    /**
      * Initiate the Invoices sub tab of Accounting tab.
      */
     private void initiateInvoicesTab() {
         updateInvoiceDropDownList(false);
 
-        listAllInvoices.addActionListener(e -> { updateInvoiceDropDownList(false); });
+        listAllInvoices.addActionListener(e -> updateInvoiceDropDownList(false));
 
         listCompaniesInvoices.addActionListener(e -> {
-                try {
-                    invoices = database.getCompaniesInvoices();
-                } catch (SQLException exception) {
-                    exception.printStackTrace();
-                } catch (CRMDBNotConnectedException exception) {
-                    exception.printStackTrace();
-                }
-                updateInvoiceDropDownList(true);
-        });
+            try {
+                invoices = database.getCompaniesInvoices();
+            } catch (CRMDBNotConnectedException exception) {
+                new ErrorWindow("SQLite3 database disconnected.");
+            } catch (SQLException exception) {
+                new ErrorWindow("SQL error: " + exception.getMessage());
+            }
 
+            updateInvoiceDropDownList(true);
+        });
 
         listIndividualsInvoices.addActionListener(e -> {
-                try {
-                    invoices = database.getIndividualsInvoices();
-                } catch (SQLException exception) {
-                    exception.printStackTrace();
-                } catch (CRMDBNotConnectedException exception) {
-                    exception.printStackTrace();
-                }
+            try {
+                invoices = database.getIndividualsInvoices();
+            } catch (CRMDBNotConnectedException exception) {
+                new ErrorWindow("SQLite3 database disconnected.");
+            } catch (SQLException exception) {
+                new ErrorWindow("SQL error: " + exception.getMessage());
+            }
 
-                updateInvoiceDropDownList(true);
+            updateInvoiceDropDownList(true);
         });
 
-        invoicesDropDownList.addActionListener(e -> updateInvoiceTable() );
+        invoicesDropDownList.addActionListener(e -> updateInvoiceTable());
 
         searchInvoices.addActionListener(e -> {
-                if (searchByUidInvoice.getText().equals("") && searchByCustomerName.getText().equals("") && searchByDate.getText().equals("")) {
-                    updateInvoiceDropDownList(false);
-                } else {
-                    if (!searchByUidInvoice.getText().equals("")) {
-                        try {
+            if (searchByUidInvoice.getText().equals("") && searchByCustomerName.getText().equals("") && searchByDate.getText().equals("")) {
+                updateInvoiceDropDownList(false);
+                return;
+            }
 
-                            Object[] result = database.getInvoiceByUid(Integer.parseInt(searchByUidInvoice.getText()));
-                            if (result != null) {
-                                invoices = new Object[1][3];
-                                invoices[0] = result;
-                            } else
-                                invoices = null;
+            if (!searchByUidInvoice.getText().equals("")) {
+                try {
+                    Object[] result = database.getInvoiceByUid(Integer.parseInt(searchByUidInvoice.getText()));
 
-                        } catch (CRMDBNotConnectedException exception) {
-                            exception.printStackTrace();
-                        } catch (SQLException exception) {
-                            exception.printStackTrace();
-                        }
-                    } else {
-                        if (!searchByCustomerName.getText().equals("")) {
-                            try {
-
-                                Object[][] result = database.getInvoicesByCustomerName(searchByCustomerName.getText());
-                                invoices = result;
-
-                            } catch (CRMDBNotConnectedException exception) {
-                                exception.printStackTrace();
-                            } catch (SQLException exception) {
-                                exception.printStackTrace();
-                            }
-                        } else {
-                            if (!searchByDate.getText().equals("")) {
-                                try {
-
-                                    Object[][] result = database.getInvoicesByDate(searchByDate.getText());
-                                    invoices = result;
-
-                                } catch (SQLException exception) {
-                                    exception.printStackTrace();
-                                } catch (CRMDBNotConnectedException exception) {
-                                    exception.printStackTrace();
-                                }
-                            }
-                        }
-                    }
-                    updateInvoiceDropDownList(true);
-                    updateInvoiceTable();
+                    if (result != null) {
+                        invoices = new Object[1][3];
+                        invoices[0] = result;
+                    } else
+                        invoices = null;
+                } catch (CRMDBNotConnectedException exception) {
+                    new ErrorWindow("SQLite3 database disconnected.");
+                } catch (SQLException exception) {
+                    new ErrorWindow("SQL error: " + exception.getMessage());
                 }
+            } else if (!searchByCustomerName.getText().equals("")) {
+                try {
+                    invoices = database.getInvoicesByCustomerName(searchByCustomerName.getText());
+                } catch (CRMDBNotConnectedException exception) {
+                    new ErrorWindow("SQLite3 database disconnected.");
+                } catch (SQLException exception) {
+                    new ErrorWindow("SQL error: " + exception.getMessage());
+                }
+            } else if (!searchByDate.getText().equals("")) {
+                try {
+                    invoices = database.getInvoicesByDate(searchByDate.getText());
+                } catch (CRMDBNotConnectedException exception) {
+                    new ErrorWindow("SQLite3 database disconnected.");
+                } catch (SQLException exception) {
+                    new ErrorWindow("SQL error: " + exception.getMessage());
+                }
+            }
+
+            updateInvoiceDropDownList(true);
+            updateInvoiceTable();
         });
     }
 
     /**
-     * Update the Invoice Table after search
+     * Update the Invoice table after search.
      */
     private void updateInvoiceTable() {
         invoicesTable.getTableHeader().setReorderingAllowed(false);
 
         try {
-
             Object toListInvoice = invoicesDropDownList.getSelectedItem();
-            if (toListInvoice != null) {
 
+            if (toListInvoice != null) {
                 String toListInvoiceUid = toListInvoice.toString().substring(3, toListInvoice.toString().indexOf("Date") - 2);
                 Object[][] data = database.getProductsOfInvoice(Integer.parseInt(toListInvoiceUid));
 
@@ -480,10 +472,8 @@ public class MainWindow {
                         };
 
                 invoicesTable.setModel(tableModel);
-            } else {
+            } else
                 invoicesTable.removeAll();
-            }
-
         } catch (CRMDBNotConnectedException exception) {
             new ErrorWindow("SQLite3 database disconnected.");
         } catch (SQLException exception) {
@@ -830,16 +820,15 @@ public class MainWindow {
         if (!filtering) {
             try {
                 invoices = database.getInvoices();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            } catch (CRMDBNotConnectedException e) {
-                e.printStackTrace();
+            } catch (CRMDBNotConnectedException exception) {
+                new ErrorWindow("SQLite3 database disconnected.");
+            } catch (SQLException exception) {
+                new ErrorWindow("SQL error: " + exception.getMessage());
             }
         }
-        if (invoices != null) {
-            for (Object[] i : invoices) {
-                invoicesDropDownList.addItem("Id:" + i[0] + "  Date:" + i[2].toString().substring(0, 10));
-            }
-        }
+
+        if (invoices != null)
+            for (Object[] i : invoices)
+                invoicesDropDownList.addItem("Id:" + i[0] + " Date:" + i[2].toString().substring(0, 10));
     }
 }
