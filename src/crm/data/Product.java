@@ -7,8 +7,7 @@ public class Product {
     private Double price;
     private Integer quantity;
 
-    public Product() {
-    }
+    public Product() { }
 
     public Product(Integer id, String name, Double price, Integer quantity) {
         this.id = id;
