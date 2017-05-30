@@ -62,7 +62,7 @@ public class MainWindow {
     private JButton listCompaniesInvoices;
     private JButton listIndividualsInvoices;
     private static Object[][] invoices = null;
-    public static final Object[] invoiceDisplayTableColumnsNames = { "UID", "Id Product", "Price", "Quantity" };
+    public static final Object[] invoiceDisplayTableColumnsNames = { "InvoiceID", "ProductID", "Price", "Quantity" };
 
     // c. Reports tab
     private JLabel bestSellProd;
@@ -460,7 +460,7 @@ public class MainWindow {
             Object toListInvoice = invoicesDropDownList.getSelectedItem();
 
             if (toListInvoice != null) {
-                String toListInvoiceUid = toListInvoice.toString().substring(3, toListInvoice.toString().indexOf("Date") - 2);
+                String toListInvoiceUid = toListInvoice.toString().substring(3, toListInvoice.toString().indexOf(" Date"));
                 Object[][] data = database.getProductsOfInvoice(Integer.parseInt(toListInvoiceUid));
 
                 DefaultTableModel tableModel = data == null ? new DefaultTableModel(invoiceDisplayTableColumnsNames, 0) :
