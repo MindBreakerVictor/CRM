@@ -415,7 +415,7 @@ public class MainWindow {
 
             if (!searchByUidInvoice.getText().equals("")) {
                 try {
-                    Object[] result = database.getInvoiceByUid(Integer.parseInt(searchByUidInvoice.getText()));
+                    Object[] result = database.getInvoiceById(Integer.parseInt(searchByUidInvoice.getText()));
 
                     if (result != null) {
                         invoices = new Object[1][3];

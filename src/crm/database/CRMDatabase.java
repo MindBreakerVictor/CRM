@@ -88,10 +88,10 @@ public class CRMDatabase implements AutoCloseable {
         crmProgramDataFolderPath = crmProgramDataFolderPath.replace('\\', '/');
 
         connection = DriverManager.getConnection("jdbc:sqlite:" + crmProgramDataFolderPath + "/crm.db");
-        PreparedStatement statement = connection.prepareStatement(DatabaseCreation);
-
-        statement.executeUpdate();
-        statement.close();
+        try (PreparedStatement statement = connection.prepareStatement(DatabaseCreation)) {
+            statement.executeUpdate();
+            statement.close();
+        }
     }
 
     /**
@@ -118,50 +118,54 @@ public class CRMDatabase implements AutoCloseable {
             throw new CRMDBNotConnectedException();
 
         String insertIntoCustomer = "INSERT INTO `customer`(`delivery_address`, `contact_number`) VALUES (?, ?);";
+        String insertIntoIndividual = "INSERT INTO `individual`(`customer_id`, `first_name`, `last_name`) VALUES (?, ?, ?);";
+        String insertIntoCompany = "INSERT INTO `company`(`customer_id`, `name`, `fiscal_code`, " +
+                "`bank_account`, `hq_address`) VALUES (?, ?, ?, ?, ?);";
 
         connection.setAutoCommit(false);
 
         try {
-            PreparedStatement statement = connection.prepareStatement(insertIntoCustomer);
+            int customerId = -1;
 
-            statement.setString(1, customer.getDeliveryAddress());
-            statement.setString(2, customer.getContactNumber());
+            try (PreparedStatement statement = connection.prepareStatement(insertIntoCustomer)) {
+                statement.setString(1, customer.getDeliveryAddress());
+                statement.setString(2, customer.getContactNumber());
 
-            if (statement.executeUpdate() != 1)
-                throw new SQLException("No customer inserted!");
+                if (statement.executeUpdate() != 1)
+                    throw new SQLException("No customer inserted!");
 
-            int customerId = 0;
-            ResultSet resultSet = statement.getGeneratedKeys();
+                try (ResultSet resultSet = statement.getGeneratedKeys()) {
+                    if (resultSet.next())
+                        customerId = resultSet.getInt(1);
+                }
+            }
 
-            if (resultSet.next())
-                customerId = resultSet.getInt(1);
-
-            resultSet.close();
-            statement.close();
+            // If the customer id is still -1, this means that it couldn't be retrieved after the insertion in the customer table.
+            // The customer id is necessary for inserting the customer additional data into the correct table based on customer type.
+            // This shouldn't happen without the above code throwing an exception, just a sanity check.
+            if (customerId == -1)
+                throw new SQLException("Customer id couldn't be retrieved after inserting in table customer.");
 
             if (customer instanceof Individual) {
                 Individual individual = (Individual) customer;
-                String insertIntoIndividual = "INSERT INTO `individual`(`customer_id`, `first_name`, `last_name`) VALUES (?, ?, ?);";
-                statement = connection.prepareStatement(insertIntoIndividual);
 
-                statement.setInt(1, customerId);
-                statement.setString(2, individual.getFirstName());
-                statement.setString(3, individual.getLastName());
-                statement.executeUpdate();
-                statement.close();
+                try (PreparedStatement statement2 = connection.prepareStatement(insertIntoIndividual)) {
+                    statement2.setInt(1, customerId);
+                    statement2.setString(2, individual.getFirstName());
+                    statement2.setString(3, individual.getLastName());
+                    statement2.executeUpdate();
+                }
             } else if (customer instanceof Company) {
                 Company company = (Company) customer;
-                String insertIntoCompany = "INSERT INTO `company`(`customer_id`, `name`, `fiscal_code`, " +
-                        "`bank_account`, `hq_address`) VALUES (?, ?, ?, ?, ?);";
-                statement = connection.prepareStatement(insertIntoCompany);
 
-                statement.setInt(1, customerId);
-                statement.setString(2, company.getName());
-                statement.setString(3, company.getFiscalCode());
-                statement.setString(4, company.getBankAccount());
-                statement.setString(5, company.getHeadquartersAddress());
-                statement.executeUpdate();
-                statement.close();
+                try (PreparedStatement statement2 = connection.prepareStatement(insertIntoCompany)) {
+                    statement2.setInt(1, customerId);
+                    statement2.setString(2, company.getName());
+                    statement2.setString(3, company.getFiscalCode());
+                    statement2.setString(4, company.getBankAccount());
+                    statement2.setString(5, company.getHeadquartersAddress());
+                    statement2.executeUpdate();
+                }
             } else
                 throw new SQLException("Unknown customer instanceof.");
 
@@ -184,69 +188,84 @@ public class CRMDatabase implements AutoCloseable {
      * @throws SQLException if a database access error occurs.
      * @throws InvalidCustomerException if the customer is not in the database.
      */
-    public int getCustomerId(Customer customer) throws CRMDBNotConnectedException,
-            SQLException, InvalidCustomerException {
+    public int getCustomerId(Customer customer) throws CRMDBNotConnectedException, SQLException, InvalidCustomerException {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
-        String selectCustomerId = "SELECT `id` FROM `customer` WHERE `delivery_address`=? AND `contact_number`=?;";
-        PreparedStatement statement = connection.prepareStatement(selectCustomerId);
+        int customerId = -1;
 
-        statement.setString(1, customer.getDeliveryAddress());
-        statement.setString(2, customer.getDeliveryAddress());
-        ResultSet resultSet = statement.executeQuery();
+        if (customer instanceof Individual)
+            customerId = getIndividualId((Individual) customer);
+        else if (customer instanceof Company)
+            customerId = getCompanyId((Company) customer);
 
-        while (resultSet.next()) {
-            int id = resultSet.getInt("id");
+        if (customerId > 0)
+            return customerId;
 
-            if (customer instanceof Individual) {
-                String selectIndividual = "SELECT `first_name`, `last_name` FROM `individual` WHERE `customer_id`=?;";
-                PreparedStatement statement2 = connection.prepareStatement(selectIndividual);
+        throw new InvalidCustomerException();
+    }
 
-                statement2.setInt(1, id);
-                ResultSet resultSet2 = statement2.executeQuery();
+    /**
+     * Get the id of an individual
+     * @param individual is the individual to lookup for.
+     * @return a > 0 unique id if the individual exists, -1 otherwise.
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException if a database access error occurs.
+     */
+    public int getIndividualId(Individual individual) throws CRMDBNotConnectedException, SQLException {
+        if (connection == null || connection.isClosed())
+            throw new CRMDBNotConnectedException();
 
-                if (resultSet2.next()) {
-                    if (resultSet2.getString("first_name").equals(((Individual)customer).getFirstName()) &&
-                        resultSet2.getString("last_name").equals(((Individual)customer).getLastName())) {
-                        resultSet2.close();
-                        statement2.close();
-                        resultSet.close();
-                        statement.close();
-                        return id;
-                    }
-                }
+        String selectIndividual = "SELECT i.customer_id " +
+                "FROM individual i JOIN customer c ON (c.id = i.customer_id) " +
+                "WHERE i.first_name=? AND i.last_name=? AND c.delivery_address=? AND c.contact_number=?;";
 
-                resultSet2.close();
-                statement2.close();
-            } else if (customer instanceof Company) {
-                String selectCompany = "SELECT `name`, `fiscal_code`, `bank_account`, `hq_address` " +
-                        "FROM `company` WHERE `customer_id`=?;";
-                PreparedStatement statement2 = connection.prepareStatement(selectCompany);
+        try (PreparedStatement statement = connection.prepareStatement(selectIndividual)) {
+            statement.setString(1, individual.getFirstName());
+            statement.setString(2, individual.getLastName());
+            statement.setString(3, individual.getDeliveryAddress());
+            statement.setString(4, individual.getContactNumber());
 
-                statement2.setInt(1, id);
-                ResultSet resultSet2 = statement2.executeQuery();
-
-                if (resultSet2.next()) {
-                    Company company = (Company)customer;
-
-                    if (resultSet2.getString("name").equals(company.getName()) &&
-                        resultSet2.getString("fiscal_code").equals(company.getFiscalCode()) &&
-                        resultSet2.getString("bank_account").equals(company.getBankAccount()) &&
-                        resultSet2.getString("hq_address").equals(company.getHeadquartersAddress())) {
-                        resultSet2.close();
-                        statement2.close();
-                        resultSet.close();
-                        statement.close();
-                        return id;
-                    }
-                }
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next())
+                    return resultSet.getInt("customer_id");
             }
         }
 
-        resultSet.close();
-        statement.close();
-        throw new InvalidCustomerException();
+        return -1;
+    }
+
+    /**
+     * Get the id of a company.
+     * @param company is the company to lookup for.
+     * @return a > 0 unique id if the company exists, -1 otherwise.
+     * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
+     * @throws SQLException if a database access error occurs.
+     */
+    public int getCompanyId(Company company) throws CRMDBNotConnectedException, SQLException {
+        if (connection == null || connection.isClosed())
+            throw new CRMDBNotConnectedException();
+
+        String selectIndividual = "SELECT co.customer_id " +
+                "FROM company co JOIN customer c ON (c.id = co.customer_id) " +
+                "WHERE co.name=? AND co.fiscal_code=? AND co.bank_account=? AND co.hq_address=? AND " +
+                "c.delivery_address=? AND c.contact_number=?;";
+
+        try (PreparedStatement statement = connection.prepareStatement(selectIndividual)) {
+            statement.setString(1, company.getName());
+            statement.setString(2, company.getFiscalCode());
+            statement.setString(3, company.getBankAccount());
+            statement.setString(4, company.getHeadquartersAddress());
+            statement.setString(5, company.getDeliveryAddress());
+            statement.setString(6, company.getContactNumber());
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next())
+                    return resultSet.getInt("customer_id");
+            }
+        }
+
+        return -1;
     }
 
     /**
@@ -262,12 +281,13 @@ public class CRMDatabase implements AutoCloseable {
             throw new CRMDBNotConnectedException();
 
         String insertProduct = "INSERT INTO `product`(`name`, `price`, `stock`) VALUES (?, ?, ?);";
-        PreparedStatement statement = connection.prepareStatement(insertProduct);
-        statement.setString(1, name);
-        statement.setDouble(2, price);
-        statement.setInt(3, stock);
-        statement.executeUpdate();
-        statement.close();
+
+        try (PreparedStatement statement = connection.prepareStatement(insertProduct)) {
+            statement.setString(1, name);
+            statement.setDouble(2, price);
+            statement.setInt(3, stock);
+            statement.executeUpdate();
+        }
     }
 
     /**
@@ -283,19 +303,17 @@ public class CRMDatabase implements AutoCloseable {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
-        String selectProductId = "SELECT `id` FROM `product` WHERE `name`=?;";
-        PreparedStatement statement = connection.prepareStatement(selectProductId);
-
-        statement.setString(1, productName);
-        ResultSet resultSet = statement.executeQuery();
-
         int productId = -1;
+        String selectProductId = "SELECT `id` FROM `product` WHERE `name`=?;";
 
-        if (resultSet.next())
-            productId = resultSet.getInt("id");
+        try (PreparedStatement statement = connection.prepareStatement(selectProductId)) {
+            statement.setString(1, productName);
 
-        resultSet.close();
-        statement.close();
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next())
+                    productId = resultSet.getInt("id");
+            }
+        }
 
         if (productId != -1)
             return productId;
@@ -316,29 +334,27 @@ public class CRMDatabase implements AutoCloseable {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
-        String selectedProduct = "SELECT * FROM `product` WHERE `name`=?;";
-        PreparedStatement statement = connection.prepareStatement(selectedProduct);
-
-        statement.setString(1, productName);
-        ResultSet resultSet = statement.executeQuery();
-
         Object[] resultProduct = null;
+        String selectedProduct = "SELECT * FROM `product` WHERE `name`=?;";
 
-        if (resultSet.next()) {
-            resultProduct = new Object[4];
-            resultProduct[0] = resultSet.getInt("id");
-            resultProduct[1] = resultSet.getString("name");
-            resultProduct[2] = resultSet.getDouble("price");
-            resultProduct[3] = resultSet.getInt("stock");
+        try (PreparedStatement statement = connection.prepareStatement(selectedProduct)) {
+            statement.setString(1, productName);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    resultProduct = new Object[4];
+                    resultProduct[0] = resultSet.getInt("id");
+                    resultProduct[1] = resultSet.getString("name");
+                    resultProduct[2] = resultSet.getDouble("price");
+                    resultProduct[3] = resultSet.getInt("stock");
+                }
+            }
         }
 
-        resultSet.close();
-        statement.close();
+        if (resultProduct != null)
+            return resultProduct;
 
-        if (resultProduct == null)
-            throw new InvalidProductException();
-
-        return resultProduct;
+        throw new InvalidProductException();
     }
 
     /**
@@ -372,37 +388,30 @@ public class CRMDatabase implements AutoCloseable {
         connection.setAutoCommit(false);
 
         try {
-            PreparedStatement insertInvoiceStatement = connection.prepareStatement(insertInvoice);
+            int invoiceId = -1;
 
-            insertInvoiceStatement.setInt(1, customerId);
+            try (PreparedStatement statement = connection.prepareStatement(insertInvoice)) {
+                statement.setInt(1, customerId);
 
-            if (insertInvoiceStatement.executeUpdate() != 1)
-                throw new InvalidCustomerException();
-
-            int invoiceId = 0;
-            ResultSet resultSet = insertInvoiceStatement.getGeneratedKeys();
-
-            if (resultSet.next())
-                invoiceId = resultSet.getInt(1);
-
-            resultSet.close();
-            insertInvoiceStatement.close();
+                try (ResultSet resultSet = statement.getGeneratedKeys()) {
+                    if (resultSet.next())
+                        invoiceId = resultSet.getInt(1);
+                }
+            }
 
             for (Object[] product : products) {
-                PreparedStatement insertInvoiceProductStatement = connection.prepareStatement(insertProduct);
-
-                insertInvoiceProductStatement.setInt(1, invoiceId);
-                insertInvoiceProductStatement.setInt(2, (Integer) product[0]);
-                insertInvoiceProductStatement.setDouble(3, (Double) product[2]);
-                insertInvoiceProductStatement.setInt(4, (Integer) product[3]);
-                insertInvoiceProductStatement.executeUpdate();
-                insertInvoiceProductStatement.close();
+                try (PreparedStatement statement = connection.prepareStatement(insertProduct)) {
+                    statement.setInt(1, invoiceId);
+                    statement.setInt(2, (Integer) product[0]);
+                    statement.setDouble(3, (Double) product[2]);
+                    statement.setInt(4, (Integer) product[3]);
+                    statement.executeUpdate();
+                }
             }
 
             connection.commit();
             connection.setAutoCommit(true);
-        } catch (Exception exception) {
-            // Catch both InvalidCustomerException and SQLException.
+        } catch (SQLException exception) {
             connection.rollback();
             connection.setAutoCommit(true);
             throw exception;
@@ -431,34 +440,31 @@ public class CRMDatabase implements AutoCloseable {
         connection.setAutoCommit(false);
 
         try {
-            PreparedStatement statement = connection.prepareStatement(updateCustomer);
-
-            statement.setString(1, customer.getDeliveryAddress());
-            statement.setString(2, customer.getContactNumber());
-            statement.setInt(3, customer.getId());
-            statement.executeUpdate();
-            statement.close();
+            try (PreparedStatement statement = connection.prepareStatement(updateCustomer)) {
+                statement.setString(1, customer.getDeliveryAddress());
+                statement.setString(2, customer.getContactNumber());
+                statement.setInt(3, customer.getId());
+                statement.executeUpdate();
+            }
 
             if (customer instanceof Individual) {
                 Individual individual = (Individual)customer;
-                statement = connection.prepareStatement(updateIndividual);
-
-                statement.setString(1, individual.getFirstName());
-                statement.setString(2, individual.getLastName());
-                statement.setInt(3, customer.getId());
-                statement.executeUpdate();
-                statement.close();
+                try (PreparedStatement statement = connection.prepareStatement(updateIndividual)) {
+                    statement.setString(1, individual.getFirstName());
+                    statement.setString(2, individual.getLastName());
+                    statement.setInt(3, customer.getId());
+                    statement.executeUpdate();
+                }
             } else if (customer instanceof Company) {
                 Company company = (Company)customer;
-                statement = connection.prepareStatement(updateCompany);
-
-                statement.setString(1, company.getName());
-                statement.setString(2, company.getFiscalCode());
-                statement.setString(3, company.getBankAccount());
-                statement.setString(4, company.getHeadquartersAddress());
-                statement.setInt(5, customer.getId());
-                statement.executeUpdate();
-                statement.close();
+                try (PreparedStatement statement = connection.prepareStatement(updateCompany)) {
+                    statement.setString(1, company.getName());
+                    statement.setString(2, company.getFiscalCode());
+                    statement.setString(3, company.getBankAccount());
+                    statement.setString(4, company.getHeadquartersAddress());
+                    statement.setInt(5, customer.getId());
+                    statement.executeUpdate();
+                }
             } else
                 throw new InvalidCustomerException();
 
@@ -492,12 +498,12 @@ public class CRMDatabase implements AutoCloseable {
             throw new InvalidProductException();
 
         String updateProduct = "UPDATE `product` SET `price`=? WHERE `id`=?;";
-        PreparedStatement statement = connection.prepareStatement(updateProduct);
 
-        statement.setDouble(1, newPrice);
-        statement.setInt(2, productId);
-        statement.executeUpdate();
-        statement.close();
+        try (PreparedStatement statement = connection.prepareStatement(updateProduct)) {
+            statement.setDouble(1, newPrice);
+            statement.setInt(2, productId);
+            statement.executeUpdate();
+        }
     }
 
     /**
@@ -536,12 +542,12 @@ public class CRMDatabase implements AutoCloseable {
             throw new InvalidProductException();
 
         String updateProduct = "UPDATE `product` SET `stock`=? WHERE `id`=?;";
-        PreparedStatement statement = connection.prepareStatement(updateProduct);
 
-        statement.setInt(1, stock);
-        statement.setInt(2, productId);
-        statement.executeUpdate();
-        statement.close();
+        try (PreparedStatement statement = connection.prepareStatement(updateProduct)) {
+            statement.setInt(1, stock);
+            statement.setInt(2, productId);
+            statement.executeUpdate();
+        }
     }
 
     /**
@@ -576,28 +582,23 @@ public class CRMDatabase implements AutoCloseable {
                 "c.delivery_address, c.contact_number\n" +
                 "FROM company co JOIN customer c ON (c.id = co.customer_id);";
 
-        PreparedStatement statement = connection.prepareStatement(getIndividuals);
-        ResultSet resultSet = statement.executeQuery();
+        try (PreparedStatement statement = connection.prepareStatement(getIndividuals);
+             ResultSet resultSet = statement.executeQuery()) {
+            while (resultSet.next())
+                customers.add(new Individual(resultSet.getString("first_name"),
+                        resultSet.getString("last_name"), resultSet.getInt("customer_id"),
+                        resultSet.getString("delivery_address"), resultSet.getString("contact_number")));
+        }
 
-        while (resultSet.next())
-            customers.add(new Individual(resultSet.getString("first_name"),
-                    resultSet.getString("last_name"), resultSet.getInt("customer_id"),
-                    resultSet.getString("delivery_address"), resultSet.getString("contact_number")));
+        try (PreparedStatement statement = connection.prepareStatement(getCompanies);
+             ResultSet resultSet = statement.executeQuery()) {
+            while (resultSet.next())
+                customers.add(new Company(resultSet.getString("name"),
+                        resultSet.getString("fiscal_code"), resultSet.getString("bank_account"),
+                        resultSet.getString("hq_address"), resultSet.getInt("customer_id"),
+                        resultSet.getString("delivery_address"), resultSet.getString("contact_number")));
+        }
 
-        resultSet.close();
-        statement.close();
-
-        statement = connection.prepareStatement(getCompanies);
-        resultSet = statement.executeQuery();
-
-        while (resultSet.next())
-            customers.add(new Company(resultSet.getString("name"),
-                    resultSet.getString("fiscal_code"), resultSet.getString("bank_account"),
-                    resultSet.getString("hq_address"), resultSet.getInt("customer_id"),
-                    resultSet.getString("delivery_address"), resultSet.getString("contact_number")));
-
-        resultSet.close();
-        statement.close();
         return customers;
     }
 
@@ -611,16 +612,15 @@ public class CRMDatabase implements AutoCloseable {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
-        PreparedStatement statement = connection.prepareStatement("SELECT COUNT(*) AS IndividualsNo FROM `individual`;");
-        ResultSet resultSet = statement.executeQuery();
-
         int individualsNo = 0;
+        String countIndividuals = "SELECT COUNT(*) AS IndividualsNo FROM `individual`;";
 
-        if (resultSet.next())
-            individualsNo = resultSet.getInt("IndividualsNo");
+        try (PreparedStatement statement = connection.prepareStatement(countIndividuals);
+             ResultSet resultSet = statement.executeQuery()) {
+            if (resultSet.next())
+                individualsNo = resultSet.getInt("IndividualsNo");
+        }
 
-        resultSet.close();
-        statement.close();
         return individualsNo;
     }
 
@@ -634,16 +634,15 @@ public class CRMDatabase implements AutoCloseable {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
-        PreparedStatement statement = connection.prepareStatement("SELECT COUNT(*) AS CompaniesNo FROM `company`;");
-        ResultSet resultSet = statement.executeQuery();
-
         int companiesNo = 0;
+        String countCompanies = "SELECT COUNT(*) AS CompaniesNo FROM `company`;";
 
-        if (resultSet.next())
-            companiesNo = resultSet.getInt("CompaniesNo");
+        try (PreparedStatement statement = connection.prepareStatement(countCompanies);
+             ResultSet resultSet = statement.executeQuery()) {
+            if (resultSet.next())
+                companiesNo = resultSet.getInt("CompaniesNo");
+        }
 
-        resultSet.close();
-        statement.close();
         return companiesNo;
     }
 
@@ -657,16 +656,15 @@ public class CRMDatabase implements AutoCloseable {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
-        PreparedStatement statement = connection.prepareStatement("SELECT COUNT(*) AS ProductsNo FROM `product`;");
-        ResultSet resultSet = statement.executeQuery();
-
         int productsNo = 0;
+        String countProducts = "SELECT COUNT(*) AS ProductsNo FROM `product`;";
 
-        if (resultSet.next())
-            productsNo = resultSet.getInt("ProductsNo");
+        try (PreparedStatement statement = connection.prepareStatement(countProducts);
+             ResultSet resultSet = statement.executeQuery()) {
+            if (resultSet.next())
+                productsNo = resultSet.getInt("ProductsNo");
+        }
 
-        resultSet.close();
-        statement.close();
         return productsNo;
     }
 
@@ -689,19 +687,18 @@ public class CRMDatabase implements AutoCloseable {
         Object[][] individualsData = new Object[individualsNo][MainWindow.individualsTableColumnNames.length];
         String selectIndividuals = "SELECT i.customer_id, i.first_name, i.last_name, " +
                 "c.delivery_address, c.contact_number FROM individual i JOIN customer c ON (c.id = i.customer_id);";
-        PreparedStatement statement = connection.prepareStatement(selectIndividuals);
-        ResultSet resultSet = statement.executeQuery();
 
-        while (resultSet.next()) {
-            individualsData[index][0] = resultSet.getInt("customer_id");
-            individualsData[index][1] = resultSet.getString("first_name");
-            individualsData[index][2] = resultSet.getString("last_name");
-            individualsData[index][3] = resultSet.getString("delivery_address");
-            individualsData[index++][4] = resultSet.getString("contact_number");
+        try (PreparedStatement statement = connection.prepareStatement(selectIndividuals);
+             ResultSet resultSet = statement.executeQuery()) {
+            while (resultSet.next()) {
+                individualsData[index][0] = resultSet.getInt("customer_id");
+                individualsData[index][1] = resultSet.getString("first_name");
+                individualsData[index][2] = resultSet.getString("last_name");
+                individualsData[index][3] = resultSet.getString("delivery_address");
+                individualsData[index++][4] = resultSet.getString("contact_number");
+            }
         }
 
-        resultSet.close();
-        statement.close();
         return individualsData;
     }
 
@@ -725,21 +722,20 @@ public class CRMDatabase implements AutoCloseable {
         String selectCompanies = "SELECT co.customer_id, co.name, co.fiscal_code, " +
                 "co.bank_account, co.hq_address, c.delivery_address, c.contact_number " +
                 "FROM company co JOIN customer c ON (c.id = co.customer_id);";
-        PreparedStatement statement = connection.prepareStatement(selectCompanies);
-        ResultSet resultSet = statement.executeQuery();
 
-        while (resultSet.next()) {
-            companiesData[index][0] = resultSet.getInt("customer_id");
-            companiesData[index][1] = resultSet.getString("name");
-            companiesData[index][2] = resultSet.getString("fiscal_code");
-            companiesData[index][3] = resultSet.getString("bank_account");
-            companiesData[index][4] = resultSet.getString("hq_address");
-            companiesData[index][5] = resultSet.getString("delivery_address");
-            companiesData[index++][6] = resultSet.getString("contact_number");
+        try (PreparedStatement statement = connection.prepareStatement(selectCompanies);
+             ResultSet resultSet = statement.executeQuery()) {
+            while (resultSet.next()) {
+                companiesData[index][0] = resultSet.getInt("customer_id");
+                companiesData[index][1] = resultSet.getString("name");
+                companiesData[index][2] = resultSet.getString("fiscal_code");
+                companiesData[index][3] = resultSet.getString("bank_account");
+                companiesData[index][4] = resultSet.getString("hq_address");
+                companiesData[index][5] = resultSet.getString("delivery_address");
+                companiesData[index++][6] = resultSet.getString("contact_number");
+            }
         }
 
-        resultSet.close();
-        statement.close();
         return companiesData;
     }
 
@@ -759,19 +755,19 @@ public class CRMDatabase implements AutoCloseable {
             return null;
 
         int index = 0;
+        String getProducts = "SELECT * FROM `product`;";
         Object[][] productsData = new Object[productsNo][MainWindow.productsTableColumnNames.length];
-        PreparedStatement statement = connection.prepareStatement("SELECT * FROM `product`;");
-        ResultSet resultSet = statement.executeQuery();
 
-        while (resultSet.next()) {
-            productsData[index][0] = resultSet.getInt("id");
-            productsData[index][1] = resultSet.getString("name");
-            productsData[index][2] = resultSet.getDouble("price");
-            productsData[index++][3] = resultSet.getInt("stock");
+        try (PreparedStatement statement = connection.prepareStatement(getProducts);
+             ResultSet resultSet = statement.executeQuery()) {
+            while (resultSet.next()) {
+                productsData[index][0] = resultSet.getInt("id");
+                productsData[index][1] = resultSet.getString("name");
+                productsData[index][2] = resultSet.getDouble("price");
+                productsData[index++][3] = resultSet.getInt("stock");
+            }
         }
 
-        resultSet.close();
-        statement.close();
         return productsData;
     }
 
@@ -788,18 +784,17 @@ public class CRMDatabase implements AutoCloseable {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
-        PreparedStatement statement = connection.prepareStatement("SELECT `stock` FROM `product` WHERE `id`=?");
-
-        statement.setInt(1, productId);
-
         int stock = -1;
-        ResultSet resultSet = statement.executeQuery();
+        String getProductStock = "SELECT `stock` FROM `product` WHERE `id`=?";
 
-        if (resultSet.next())
-            stock = resultSet.getInt("stock");
+        try (PreparedStatement statement = connection.prepareStatement(getProductStock)) {
+            statement.setInt(1, productId);
 
-        resultSet.close();
-        statement.close();
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next())
+                    stock = resultSet.getInt("stock");
+            }
+        }
 
         if (stock == -1)
             throw new InvalidProductException();
@@ -831,16 +826,15 @@ public class CRMDatabase implements AutoCloseable {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
-        PreparedStatement statement = connection.prepareStatement("SELECT * FROM `product` WHERE `id`=?;");
+        String getProduct = "SELECT * FROM `product` WHERE `id`=?;";
 
-        statement.setInt(1, productId);
+        try (PreparedStatement statement = connection.prepareStatement(getProduct)) {
+            statement.setInt(1, productId);
 
-        ResultSet resultSet = statement.executeQuery();
-        boolean isValidProduct = resultSet.next();
-
-        resultSet.close();
-        statement.close();
-        return isValidProduct;
+            try (ResultSet resultSet = statement.executeQuery()) {
+                return resultSet.next();
+            }
+        }
     }
 
     /**
@@ -853,16 +847,15 @@ public class CRMDatabase implements AutoCloseable {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
-        PreparedStatement statement = connection.prepareStatement("SELECT * FROM `customer` WHERE `id`=?;");
+        String getCustomer = "SELECT * FROM `customer` WHERE `id`=?;";
 
-        statement.setInt(1, customerId);
+        try (PreparedStatement statement = connection.prepareStatement(getCustomer)) {
+            statement.setInt(1, customerId);
 
-        ResultSet resultSet = statement.executeQuery();
-        boolean isValidCustomer = resultSet.next();
-
-        resultSet.close();
-        statement.close();
-        return isValidCustomer;
+            try (ResultSet resultSet = statement.executeQuery()) {
+                return resultSet.next();
+            }
+        }
     }
 
     /**
@@ -875,16 +868,15 @@ public class CRMDatabase implements AutoCloseable {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
-        PreparedStatement statement = connection.prepareStatement("SELECT * FROM `invoice` WHERE `id`=?;");
+        String getInvoice = "SELECT * FROM `invoice` WHERE `id`=?;";
 
-        statement.setInt(1, invoiceId);
+        try (PreparedStatement statement = connection.prepareStatement(getInvoice)) {
+            statement.setInt(1, invoiceId);
 
-        ResultSet resultSet = statement.executeQuery();
-        boolean isValidInvoice = resultSet.next();
-
-        resultSet.close();
-        statement.close();
-        return isValidInvoice;
+            try (ResultSet resultSet = statement.executeQuery()) {
+                return resultSet.next();
+            }
+        }
     }
 
     /**
@@ -902,28 +894,27 @@ public class CRMDatabase implements AutoCloseable {
         if (!isValidProduct(productId))
             throw new InvalidProductException();
 
-        PreparedStatement statement = connection.prepareStatement("SELECT * FROM `product` WHERE `id`=?;");
-
-        statement.setInt(1, productId);
-
         Object[] product = null;
-        ResultSet resultSet = statement.executeQuery();
+        String getProduct = "SELECT * FROM `product` WHERE `id`=?;";
 
-        if (resultSet.next()) {
-            product = new Object[MainWindow.productsTableColumnNames.length];
-            product[0] = resultSet.getInt("id");
-            product[1] = resultSet.getString("name");
-            product[2] = resultSet.getDouble("price");
-            product[3] = resultSet.getInt("stock");
+        try (PreparedStatement statement = connection.prepareStatement(getProduct)) {
+            statement.setInt(1, productId);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    product = new Object[MainWindow.productsTableColumnNames.length];
+                    product[0] = resultSet.getInt("id");
+                    product[1] = resultSet.getString("name");
+                    product[2] = resultSet.getDouble("price");
+                    product[3] = resultSet.getInt("stock");
+                }
+            }
         }
 
-        resultSet.close();
-        statement.close();
+        if (product != null)
+            return product;
 
-        if (product == null)
-            throw new InvalidProductException();
-
-        return product;
+        throw new InvalidProductException();
     }
 
     /**
@@ -939,23 +930,22 @@ public class CRMDatabase implements AutoCloseable {
             throw new CRMDBNotConnectedException();
 
         List<Object[]> products = new ArrayList<>();
-        PreparedStatement statement = connection.prepareStatement("SELECT * FROM `product` WHERE `name` LIKE ?;");
+        String getProduct = "SELECT * FROM `product` WHERE `name` LIKE ?;";
 
-        statement.setString(1, "%" + namePattern + "%");
+        try (PreparedStatement statement = connection.prepareStatement(getProduct)) {
+            statement.setString(1, "%" + namePattern + "%");
 
-        ResultSet resultSet = statement.executeQuery();
-
-        while (resultSet.next()) {
-            Object[] product = new Object[4];
-            product[0] = resultSet.getInt("id");
-            product[1] = resultSet.getString("name");
-            product[2] = resultSet.getDouble("price");
-            product[3] = resultSet.getInt("stock");
-            products.add(product);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    Object[] product = new Object[4];
+                    product[0] = resultSet.getInt("id");
+                    product[1] = resultSet.getString("name");
+                    product[2] = resultSet.getDouble("price");
+                    product[3] = resultSet.getInt("stock");
+                    products.add(product);
+                }
+            }
         }
-
-        resultSet.close();
-        statement.close();
 
         if (products.isEmpty())
             throw new InvalidProductException();
@@ -978,21 +968,19 @@ public class CRMDatabase implements AutoCloseable {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
-        String selectBestSellingProduct = "SELECT `product_id`, sum(`quantity`) AS quantity FROM `invoice_product` GROUP BY `product_id`;";
-        PreparedStatement statement = connection.prepareStatement(selectBestSellingProduct);
-        ResultSet resultSet = statement.executeQuery();
-
         List<Object[]> data = new ArrayList<>();
+        String selectBestSellingProduct = "SELECT `product_id`, sum(`quantity`) AS quantity " +
+                "FROM `invoice_product` GROUP BY `product_id`;";
 
-        while (resultSet.next()) {
-            Object[] rowData = new Object[2];
-            rowData[0] = resultSet.getInt("product_id");
-            rowData[1] = resultSet.getInt("quantity");
-            data.add(rowData);
+        try (PreparedStatement statement = connection.prepareStatement(selectBestSellingProduct);
+             ResultSet resultSet = statement.executeQuery()) {
+            while (resultSet.next()) {
+                Object[] rowData = new Object[2];
+                rowData[0] = resultSet.getInt("product_id");
+                rowData[1] = resultSet.getInt("quantity");
+                data.add(rowData);
+            }
         }
-
-        resultSet.close();
-        statement.close();
 
         int limit = data.size();
         int max = Integer.MIN_VALUE;
@@ -1020,21 +1008,18 @@ public class CRMDatabase implements AutoCloseable {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
-        String selectBestCustomer = "SELECT `customer_id`, COUNT(`customer_id`) AS invoices FROM `invoice` GROUP BY `customer_id`;";
-        PreparedStatement statement = connection.prepareStatement(selectBestCustomer);
-        ResultSet resultSet = statement.executeQuery();
-
         List<Object[]> data = new ArrayList<>();
+        String selectBestCustomer = "SELECT `customer_id`, COUNT(`customer_id`) AS invoices FROM `invoice` GROUP BY `customer_id`;";
 
-        while (resultSet.next()) {
-            Object[] rowData = new Object[2];
-            rowData[0] = resultSet.getInt("customer_id");
-            rowData[1] = resultSet.getInt("invoices");
-            data.add(rowData);
+        try (PreparedStatement statement = connection.prepareStatement(selectBestCustomer);
+             ResultSet resultSet = statement.executeQuery()) {
+            while (resultSet.next()) {
+                Object[] rowData = new Object[2];
+                rowData[0] = resultSet.getInt("customer_id");
+                rowData[1] = resultSet.getInt("invoices");
+                data.add(rowData);
+            }
         }
-
-        resultSet.close();
-        statement.close();
 
         int limit = data.size();
         int max = Integer.MIN_VALUE;
@@ -1062,6 +1047,7 @@ public class CRMDatabase implements AutoCloseable {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
+        List<Object[]> data = new ArrayList<>();
         String selectCustomersPayments =
                 "SELECT m.CustomerID, COUNT(m.InvoiceID) AS 'Invoices No.', sum(m.Price) AS 'Total earned from customer'\n" +
                 "FROM (SELECT i.customer_id AS 'CustomerID', ip.invoice_id AS 'InvoiceID', sum(ip.product_price * ip.quantity) AS 'Price'\n" +
@@ -1069,21 +1055,17 @@ public class CRMDatabase implements AutoCloseable {
                 "      GROUP BY ip.invoice_id) m\n" +
                 "GROUP BY m.CustomerID;";
 
-        List<Object[]> data = new ArrayList<>();
-        PreparedStatement statement = connection.prepareStatement(selectCustomersPayments);
-        ResultSet resultSet = statement.executeQuery();
-
-        while (resultSet.next()) {
-            Object[] rowData = new Object[4];
-            rowData[0] = resultSet.getInt("CustomerID");
-            rowData[1] = getCustomerName((Integer)rowData[0]);
-            rowData[2] = resultSet.getInt("Invoices No.");
-            rowData[3] = resultSet.getDouble("Total earned from customer");
-            data.add(rowData);
+        try (PreparedStatement statement = connection.prepareStatement(selectCustomersPayments);
+             ResultSet resultSet = statement.executeQuery()) {
+            while (resultSet.next()) {
+                Object[] rowData = new Object[4];
+                rowData[0] = resultSet.getInt("CustomerID");
+                rowData[1] = getCustomerName((Integer) rowData[0]);
+                rowData[2] = resultSet.getInt("Invoices No.");
+                rowData[3] = resultSet.getDouble("Total earned from customer");
+                data.add(rowData);
+            }
         }
-
-        resultSet.close();
-        statement.close();
 
         if (data.isEmpty())
             return null;
@@ -1108,31 +1090,29 @@ public class CRMDatabase implements AutoCloseable {
             throw new CRMDBNotConnectedException();
 
         String customerName = null;
-
         String getIndividuals = "SELECT `first_name`, `last_name` FROM `individual` WHERE `customer_id`=?;";
-        PreparedStatement statement = connection.prepareStatement(getIndividuals);
+        String getCompanies = "SELECT `name` FROM `company` WHERE `customer_id`=?;";
 
-        statement.setInt(1, customerId);
-
-        ResultSet resultSet = statement.executeQuery();
-
-        if (resultSet.next()) {
-            customerName = resultSet.getString("first_name");
-            customerName = customerName + " " + resultSet.getString("last_name");
-        }
-
-        resultSet.close();
-        statement.close();
-
-        if (customerName == null) {
-            statement = connection.prepareStatement("SELECT `name` FROM `company` WHERE `customer_id`=?;");
-
+        try (PreparedStatement statement = connection.prepareStatement(getIndividuals)) {
             statement.setInt(1, customerId);
 
-            resultSet = statement.executeQuery();
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    customerName = resultSet.getString("first_name");
+                    customerName = customerName + " " + resultSet.getString("last_name");
+                }
+            }
+        }
 
-            if (resultSet.next())
-                customerName = resultSet.getString("name");
+        if (customerName == null) {
+            try (PreparedStatement statement = connection.prepareStatement(getCompanies)) {
+                statement.setInt(1, customerId);
+
+                try (ResultSet resultSet = statement.executeQuery()) {
+                    if (resultSet.next())
+                        customerName = resultSet.getString("name");
+                }
+            }
         }
 
         return customerName;
@@ -1149,17 +1129,15 @@ public class CRMDatabase implements AutoCloseable {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
-        PreparedStatement statement = connection.prepareStatement("SELECT * FROM `company` WHERE `customer_id`=?;");
+        String getCompany = "SELECT * FROM `company` WHERE `customer_id`=?;";
 
-        statement.setInt(1, companyId);
+        try (PreparedStatement statement = connection.prepareStatement(getCompany)) {
+            statement.setInt(1, companyId);
 
-        ResultSet resultSet = statement.executeQuery();
-        boolean isCompany = resultSet.next();
-
-        resultSet.close();
-        statement.close();
-
-        return isCompany;
+            try (ResultSet resultSet = statement.executeQuery()) {
+                return resultSet.next();
+            }
+        }
     }
 
     /**
@@ -1173,49 +1151,45 @@ public class CRMDatabase implements AutoCloseable {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
-        PreparedStatement statement = connection.prepareStatement("SELECT * FROM `individual` WHERE `customer_id`=?;");
+        String getIndividual = "SELECT * FROM `individual` WHERE `customer_id`=?;";
 
-        statement.setInt(1, individualId);
+        try (PreparedStatement statement = connection.prepareStatement(getIndividual)) {
+            statement.setInt(1, individualId);
 
-        ResultSet resultSet = statement.executeQuery();
-        boolean isIndividual = resultSet.next();
-
-        resultSet.close();
-        statement.close();
-
-        return isIndividual;
+            try (ResultSet resultSet = statement.executeQuery()) {
+                return resultSet.next();
+            }
+        }
     }
 
     /**
      * Get an Object with the data of an Invoice by an UID
-     * @param invoiceUID
+     * @param invoiceId
      * @return Object[3] if the UID is valid and null otherwise.
      * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
      * @throws SQLException if a database access error occurs.
      */
-    public Object[] getInvoiceByUid(int invoiceUID) throws CRMDBNotConnectedException, SQLException {
+    public Object[] getInvoiceById(int invoiceId) throws CRMDBNotConnectedException, SQLException {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
-        Object[] invoice = null;
+        String getInvoice = "SELECT * FROM `invoice` WHERE `id`=?;";
 
-        PreparedStatement statement = connection.prepareStatement("SELECT * FROM `invoice` WHERE `id`=?;");
+        try (PreparedStatement statement = connection.prepareStatement(getInvoice)) {
+            statement.setInt(1, invoiceId);
 
-        statement.setInt(1, invoiceUID);
-
-        ResultSet resultSet = statement.executeQuery();
-
-        if (resultSet.next()) {
-            invoice = new Object[3];
-            invoice[0] = resultSet.getInt("id");
-            invoice[1] = resultSet.getInt("customer_id");
-            invoice[2] = resultSet.getString("date");
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    Object[] invoice = new Object[3];
+                    invoice[0] = resultSet.getInt("id");
+                    invoice[1] = resultSet.getInt("customer_id");
+                    invoice[2] = resultSet.getString("date");
+                    return invoice;
+                }
+            }
         }
 
-        resultSet.close();
-        statement.close();
-
-        return invoice;
+        return null;
     }
 
     /**
@@ -1231,22 +1205,21 @@ public class CRMDatabase implements AutoCloseable {
 
         int customerID = getCustomerIdByName(customerName);
         List<Object[]> data = new ArrayList<>();
-        PreparedStatement statement = connection.prepareStatement("SELECT * FROM `invoice` WHERE `customer_id`=?;");
+        String getCustomerInvoices = "SELECT * FROM `invoice` WHERE `customer_id`=?;";
 
-        statement.setInt(1, customerID);
+        try (PreparedStatement statement = connection.prepareStatement(getCustomerInvoices)) {
+            statement.setInt(1, customerID);
 
-        ResultSet resultSet = statement.executeQuery();
-
-        if (resultSet.next()) {
-            Object[] invoice = new Object[3];
-            invoice[0] = resultSet.getInt("id");
-            invoice[1] = resultSet.getInt("customer_id");
-            invoice[2] = resultSet.getString("date");
-            data.add(invoice);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    Object[] invoice = new Object[3];
+                    invoice[0] = resultSet.getInt("id");
+                    invoice[1] = resultSet.getInt("customer_id");
+                    invoice[2] = resultSet.getString("date");
+                    data.add(invoice);
+                }
+            }
         }
-
-        resultSet.close();
-        statement.close();
 
         if (data.isEmpty())
             return null;
@@ -1271,33 +1244,28 @@ public class CRMDatabase implements AutoCloseable {
             throw new CRMDBNotConnectedException();
 
         int customerId = -1;
+        String getCompanyId = "SELECT `customer_id` FROM `company` WHERE `name`=?;";
+        String getIndividualId = "SELECT `customer_id` FROM `individual` WHERE `first_name`=? OR `last_name`=?;";
 
-        String getIndividuals = "SELECT `customer_id` FROM `individual` WHERE `first_name`=? OR `last_name`=?;";
-        PreparedStatement statement = connection.prepareStatement(getIndividuals);
+        try (PreparedStatement statement = connection.prepareStatement(getIndividualId)) {
+            statement.setString(1, customerName);
+            statement.setString(2, customerName);
 
-        statement.setString(1, customerName);
-        statement.setString(2, customerName);
-
-        ResultSet resultSet = statement.executeQuery();
-
-        if (resultSet.next())
-            customerId = resultSet.getInt("customer_id");
-
-        resultSet.close();
-        statement.close();
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next())
+                    customerId = resultSet.getInt("customer_id");
+            }
+        }
 
         if (customerId == -1) {
-            statement = connection.prepareStatement("SELECT `customer_id` FROM `company` WHERE `name`=?;");
+            try (PreparedStatement statement = connection.prepareStatement(getCompanyId)) {
+                statement.setString(1, customerName);
 
-            statement.setString(1, customerName);
-
-            resultSet = statement.executeQuery();
-
-            if (resultSet.next())
-                customerId = resultSet.getInt("customer_id");
-
-            resultSet.close();
-            statement.close();
+                try (ResultSet resultSet = statement.executeQuery()) {
+                    if (resultSet.next())
+                        customerId = resultSet.getInt("customer_id");
+                }
+            }
         }
 
         return customerId;
@@ -1315,22 +1283,21 @@ public class CRMDatabase implements AutoCloseable {
             throw new CRMDBNotConnectedException();
 
         List<Object[]> data = new ArrayList<>();
-        PreparedStatement statement = connection.prepareStatement("SELECT * FROM `invoice` WHERE `date` LIKE ?;");
+        String getInvoicesByDate = "SELECT * FROM `invoice` WHERE `date` LIKE ?;";
 
-        statement.setString(1, '%' + date + '%');
+        try (PreparedStatement statement = connection.prepareStatement(getInvoicesByDate)) {
+            statement.setString(1, '%' + date + '%');
 
-        ResultSet resultSet = statement.executeQuery();
-
-        while (resultSet.next()) {
-            Object[] invoice = new Object[3];
-            invoice[0] = resultSet.getInt("id");
-            invoice[1] = resultSet.getInt("customer_id");
-            invoice[2] = resultSet.getString("date");
-            data.add(invoice);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    Object[] invoice = new Object[3];
+                    invoice[0] = resultSet.getInt("id");
+                    invoice[1] = resultSet.getInt("customer_id");
+                    invoice[2] = resultSet.getString("date");
+                    data.add(invoice);
+                }
+            }
         }
-
-        resultSet.close();
-        statement.close();
 
         if (data.isEmpty())
             return null;
@@ -1354,19 +1321,18 @@ public class CRMDatabase implements AutoCloseable {
             throw new CRMDBNotConnectedException();
 
         List<Object[]> data = new ArrayList<>();
-        PreparedStatement statement = connection.prepareStatement("SELECT * FROM `invoice`;");
-        ResultSet resultSet = statement.executeQuery();
+        String getInvoices = "SELECT * FROM `invoice`;";
 
-        while (resultSet.next()) {
-            Object[] invoice = new Object[3];
-            invoice[0] = resultSet.getInt("id");
-            invoice[1] = resultSet.getInt("customer_id");
-            invoice[2] = resultSet.getString("date");
-            data.add(invoice);
+        try (PreparedStatement statement = connection.prepareStatement(getInvoices);
+             ResultSet resultSet = statement.executeQuery()) {
+            while (resultSet.next()) {
+                Object[] invoice = new Object[3];
+                invoice[0] = resultSet.getInt("id");
+                invoice[1] = resultSet.getInt("customer_id");
+                invoice[2] = resultSet.getString("date");
+                data.add(invoice);
+            }
         }
-
-        resultSet.close();
-        statement.close();
 
         if (data.isEmpty())
             return null;
@@ -1390,20 +1356,19 @@ public class CRMDatabase implements AutoCloseable {
             throw new CRMDBNotConnectedException();
 
         List<Object[]> data = new ArrayList<>();
-        PreparedStatement statement = connection.prepareStatement("SELECT inv.id, inv.customer_id, inv.date \n" +
-                "FROM invoice inv JOIN company c ON (inv.customer_id = c.Customer_id);");
-        ResultSet resultSet = statement.executeQuery();
+        String getCompaniesInvoices = "SELECT inv.id, inv.customer_id, inv.date " +
+                "FROM invoice inv JOIN company c ON (inv.customer_id = c.Customer_id);";
 
-        while (resultSet.next()) {
-            Object[] invoice = new Object[3];
-            invoice[0] = resultSet.getInt("id");
-            invoice[1] = resultSet.getInt("customer_id");
-            invoice[2] = resultSet.getString("date");
-            data.add(invoice);
+        try (PreparedStatement statement = connection.prepareStatement(getCompaniesInvoices);
+             ResultSet resultSet = statement.executeQuery()) {
+            while (resultSet.next()) {
+                Object[] invoice = new Object[3];
+                invoice[0] = resultSet.getInt("id");
+                invoice[1] = resultSet.getInt("customer_id");
+                invoice[2] = resultSet.getString("date");
+                data.add(invoice);
+            }
         }
-
-        resultSet.close();
-        statement.close();
 
         if (data.isEmpty())
             return null;
@@ -1427,20 +1392,19 @@ public class CRMDatabase implements AutoCloseable {
             throw new CRMDBNotConnectedException();
 
         List<Object[]> data = new ArrayList<>();
-        PreparedStatement statement = connection.prepareStatement("SELECT inv.id, inv.customer_id, inv.date \n" +
-                "FROM invoice inv JOIN individual i ON (inv.customer_id = i.customer_id);");
-        ResultSet resultSet = statement.executeQuery();
+        String getIndividualsInvoices = "SELECT inv.id, inv.customer_id, inv.date " +
+                "FROM invoice inv JOIN individual i ON (inv.customer_id = i.customer_id);";
 
-        while (resultSet.next()) {
-            Object[] invoice = new Object[3];
-            invoice[0] = resultSet.getInt("id");
-            invoice[1] = resultSet.getInt("customer_id");
-            invoice[2] = resultSet.getString("date");
-            data.add(invoice);
+        try (PreparedStatement statement = connection.prepareStatement(getIndividualsInvoices);
+             ResultSet resultSet = statement.executeQuery()) {
+            while (resultSet.next()) {
+                Object[] invoice = new Object[3];
+                invoice[0] = resultSet.getInt("id");
+                invoice[1] = resultSet.getInt("customer_id");
+                invoice[2] = resultSet.getString("date");
+                data.add(invoice);
+            }
         }
-
-        resultSet.close();
-        statement.close();
 
         if (data.isEmpty())
             return null;
@@ -1455,33 +1419,32 @@ public class CRMDatabase implements AutoCloseable {
 
     /**
      * Get all the products from the invoice with the specified parameter as Object[][]
-     * @param invoiceUID
+     * @param invoiceId
      * @return Object[][]
      * @throws CRMDBNotConnectedException if the database is not connected. You must call connect() first.
      * @throws SQLException if a database access error occurs.
      */
-    public Object[][] getProductsOfInvoice(int invoiceUID) throws SQLException, CRMDBNotConnectedException {
+    public Object[][] getProductsOfInvoice(int invoiceId) throws SQLException, CRMDBNotConnectedException {
         if (connection == null || connection.isClosed())
             throw new CRMDBNotConnectedException();
 
         List<Object[]> data = new ArrayList<>();
-        PreparedStatement statement = connection.prepareStatement("SELECT * FROM `invoice_product` WHERE `invoice_id`=?;");
+        String getInvoiceProducts = "SELECT * FROM `invoice_product` WHERE `invoice_id`=?;";
 
-        statement.setInt(1, invoiceUID);
+        try (PreparedStatement statement = connection.prepareStatement(getInvoiceProducts)) {
+            statement.setInt(1, invoiceId);
 
-        ResultSet resultSet = statement.executeQuery();
-
-        while (resultSet.next()) {
-            Object[] product = new Object[4];
-            product[0] = resultSet.getInt("invoice_id");
-            product[1] = resultSet.getInt("product_id");
-            product[2] = resultSet.getDouble("product_price");
-            product[3] = resultSet.getInt("quantity");
-            data.add(product);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    Object[] product = new Object[4];
+                    product[0] = resultSet.getInt("invoice_id");
+                    product[1] = resultSet.getInt("product_id");
+                    product[2] = resultSet.getDouble("product_price");
+                    product[3] = resultSet.getInt("quantity");
+                    data.add(product);
+                }
+            }
         }
-
-        resultSet.close();
-        statement.close();
 
         if (data.isEmpty())
             return null;
