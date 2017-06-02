@@ -1,7 +1,7 @@
 package crm.gui;
 
 import crm.data.*;
-import crm.database.*;
+import crm.web.JSONAdapter;
 
 import java.util.List;
 import java.util.ArrayList;
@@ -16,12 +16,10 @@ import javax.swing.table.TableModel;
 import java.awt.Dimension;
 import java.awt.Toolkit;
 
-import java.sql.SQLException;
-
 public class MainWindow {
 
-    // Database
-    private CRMDatabase database;
+    // Parsing JSON Class
+    private JSONAdapter database = new JSONAdapter();
 
     // Main frame
     private JFrame frame;
@@ -105,9 +103,7 @@ public class MainWindow {
         invoiceProducts = new ArrayList<>();
     }
 
-    public MainWindow(CRMDatabase database) {
-        this.database = database;
-
+    public MainWindow() {
         initiateAccountingTab();
         initiateDepositTab();
         initiateInvoiceTab();
@@ -151,17 +147,11 @@ public class MainWindow {
         individualsTable.getTableHeader().setReorderingAllowed(false);
 
         addIndividual.addActionListener(e -> {
-            try {
-                database.insertCustomer(new Individual(individualFirstName.getText(), individualLastName.getText(),
-                        individualDeliveryAddress.getText(), individualContactNumber.getText()));
-                resetIndividualsTextFields();
-                updateIndividualsTable();
-                updateCustomersDropDownList();
-            } catch (CRMDBNotConnectedException exception) {
-                new ErrorWindow("SQLite3 database disconnected.");
-            } catch (SQLException exception) {
-                new ErrorWindow("SQL error: " + exception.getMessage());
-            }
+            database.insertCustomer(new Individual(individualFirstName.getText(), individualLastName.getText(),
+                    individualDeliveryAddress.getText(), individualContactNumber.getText()));
+            resetIndividualsTextFields();
+            updateIndividualsTable();
+            updateCustomersDropDownList();
         });
 
         individualsTable.getModel().addTableModelListener(e -> {
@@ -175,16 +165,7 @@ public class MainWindow {
                 String contactNumber = (String)tableModel.getValueAt(row, 4);
                 Individual individual = new Individual(firstName, lastName, id, deliveryAddress, contactNumber);
 
-                try {
-                    database.updateCustomer(individual);
-                } catch (CRMDBNotConnectedException exception) {
-                    new ErrorWindow("SQLite3 database disconnected.");
-                } catch (SQLException exception) {
-                    new ErrorWindow("SQL error: " + exception.getMessage());
-                } catch (InvalidCustomerException exception) {
-                    new ErrorWindow("Invalid customer id passed to CRMDatabase::updateCustomer at line " +
-                            Integer.toString(exception.getStackTrace()[0].getLineNumber()));
-                }
+                database.updateCustomer(individual);
             }
         });
     }
@@ -193,19 +174,13 @@ public class MainWindow {
      * Update individuals table from Individuals sub tab of Customer sub tab of Accounting tab.
      */
     private void updateIndividualsTable() {
-        try {
-            Object[][] data = database.getIndividuals();
-            DefaultTableModel tableModel = data == null ? new DefaultTableModel(individualsTableColumnNames, 0) :
-                    new DefaultTableModel(data, individualsTableColumnNames) {
-                        @Override public boolean isCellEditable(int row, int column) { return column != 0; }
-                    };
+        Object[][] data = database.getIndividuals();
+        DefaultTableModel tableModel = data == null ? new DefaultTableModel(individualsTableColumnNames, 0) :
+                new DefaultTableModel(data, individualsTableColumnNames) {
+                    @Override public boolean isCellEditable(int row, int column) { return column != 0; }
+                };
 
-            individualsTable.setModel(tableModel);
-        } catch (CRMDBNotConnectedException exception) {
-            new ErrorWindow("SQLite3 database disconnected.");
-        } catch (SQLException exception) {
-            new ErrorWindow("SQL error: " + exception.getMessage());
-        }
+        individualsTable.setModel(tableModel);
     }
 
     /**
@@ -227,18 +202,12 @@ public class MainWindow {
         companiesTable.getTableHeader().setReorderingAllowed(false);
 
         addCompany.addActionListener(e -> {
-            try {
-                this.database.insertCustomer(new Company(companyName.getText(), companyFiscalCode.getText(),
-                        companyBankAccount.getText(), companyHQAddress.getText(),
-                        companyDeliveryAddress.getText(), companyContactNumber.getText()));
-                resetCompaniesTextFields();
-                updateCompaniesTable();
-                updateCustomersDropDownList();
-            } catch (CRMDBNotConnectedException exception) {
-                new ErrorWindow("SQLite3 database disconnected.");
-            } catch (SQLException exception) {
-                new ErrorWindow("SQL error: " + exception.getMessage());
-            }
+            this.database.insertCustomer(new Company(companyName.getText(), companyFiscalCode.getText(),
+                    companyBankAccount.getText(), companyHQAddress.getText(),
+                    companyDeliveryAddress.getText(), companyContactNumber.getText()));
+            resetCompaniesTextFields();
+            updateCompaniesTable();
+            updateCustomersDropDownList();
         });
 
         companiesTable.getModel().addTableModelListener(e -> {
@@ -254,16 +223,7 @@ public class MainWindow {
                 String contactNumber = (String)tableModel.getValueAt(row, 6);
                 Company company = new Company(name, fiscalCode, bankAccount, hqAddress, id, deliveryAddress, contactNumber);
 
-                try {
-                    database.updateCustomer(company);
-                } catch (CRMDBNotConnectedException exception) {
-                    new ErrorWindow("SQLite3 database disconnected.");
-                } catch (SQLException exception) {
-                    new ErrorWindow("SQL error: " + exception.getMessage());
-                } catch (InvalidCustomerException exception) {
-                    new ErrorWindow("Invalid customer id passed to CRMDatabase::updateCustomer at line " +
-                            Integer.toString(exception.getStackTrace()[0].getLineNumber()));
-                }
+                database.updateCustomer(company);
             }
         });
     }
@@ -272,19 +232,13 @@ public class MainWindow {
      * Update companies table from Companies sub tab of Customer sub tab of Accounting tab.
      */
     private void updateCompaniesTable() {
-        try {
-            Object[][] data = database.getCompanies();
-            DefaultTableModel tableModel = data == null ? new DefaultTableModel(companiesTableColumnNames, 0) :
-                    new DefaultTableModel(data, companiesTableColumnNames) {
-                        @Override public boolean isCellEditable(int row, int column) { return column != 0; }
-                    };
+        Object[][] data = database.getCompanies();
+        DefaultTableModel tableModel = data == null ? new DefaultTableModel(companiesTableColumnNames, 0) :
+                new DefaultTableModel(data, companiesTableColumnNames) {
+                    @Override public boolean isCellEditable(int row, int column) { return column != 0; }
+                };
 
-            companiesTable.setModel(tableModel);
-        } catch (CRMDBNotConnectedException exception) {
-            new ErrorWindow("SQLite3 database disconnected.");
-        } catch (SQLException exception) {
-            new ErrorWindow("SQL error: " + exception.getMessage());
-        }
+        companiesTable.setModel(tableModel);
     }
 
     /**
@@ -306,45 +260,31 @@ public class MainWindow {
     private void initiateReportsTab() {
         updateReportsTable();
 
-        try {
-            Object[] bestSellProduct = database.getBestSellingProduct();
+        Object[] bestSellProduct = database.getBestSellingProduct();
 
-            if (bestSellProduct == null)
-                bestSellProd.setText("No data available.");
-            else
-                bestSellProd.setText(bestSellProduct[1].toString());
+        if (bestSellProduct == null)
+            bestSellProd.setText("No data available.");
+        else
+            bestSellProd.setText(bestSellProduct[1].toString());
 
-            String bgCustomer = database.getBestCustomer();
+        String bgCustomer = database.getBestCustomer();
 
-            if (bgCustomer == null)
-                biggestCustomer.setText("No data available.");
-            else
-                biggestCustomer.setText(bgCustomer);
-        } catch (CRMDBNotConnectedException exception) {
-            new ErrorWindow("SQLite3 database disconnected.");
-        } catch (SQLException exception) {
-            new ErrorWindow("SQL error: " + exception.getMessage());
-        } catch (InvalidProductException exception) {
-            new ErrorWindow("CRMDatabase.getProduct received an invalid id as parameter in CRMDatabase.getBestSellingProduct.");
-        }
+        if (bgCustomer == null)
+            biggestCustomer.setText("No data available.");
+        else
+            biggestCustomer.setText(bgCustomer);
     }
 
     private void updateReportsTable() {
-        try {
-            Object[][] data = database.getCustomersPayments();
+        Object[][] data = database.getCustomersPayments();
 
-            DefaultTableModel tableModel = data == null ? new DefaultTableModel(reportsTableColumnNames, 0) :
-                    new DefaultTableModel(data, reportsTableColumnNames) {
-                        @Override public boolean isCellEditable(int row, int column) { return false; }
-                    };
+        DefaultTableModel tableModel = data == null ? new DefaultTableModel(reportsTableColumnNames, 0) :
+                new DefaultTableModel(data, reportsTableColumnNames) {
+                    @Override public boolean isCellEditable(int row, int column) { return false; }
+                };
 
-            reportsTable.setModel(tableModel);
-            updateTotalEarnings(data);
-        } catch (CRMDBNotConnectedException exception) {
-            new ErrorWindow("SQLite3 database disconnected.");
-        } catch (SQLException exception) {
-            new ErrorWindow("SQL error: " + exception.getMessage());
-        }
+        reportsTable.setModel(tableModel);
+        updateTotalEarnings(data);
     }
 
     private void updateTotalEarnings(Object[][] data) {
@@ -357,20 +297,14 @@ public class MainWindow {
         if (data == null)
             return;
 
-        try {
-            for (Object[] rowData : data)
-                if (database.isCompany((Integer) rowData[0]))
-                    totalEarnedFromCompanies += (Double) rowData[3];
-                else if (database.isIndividual((Integer) rowData[0]))
-                    totalEarnedFromIndividuals += (Double) rowData[3];
+        for (Object[] rowData : data)
+            if (database.isCompany((Integer) rowData[0]))
+                totalEarnedFromCompanies += (Double) rowData[3];
+            else if (database.isIndividual((Integer) rowData[0]))
+                totalEarnedFromIndividuals += (Double) rowData[3];
 
-            totalIndividuals.setText(Double.toString(totalEarnedFromIndividuals));
-            totalCompanies.setText(Double.toString(totalEarnedFromCompanies));
-        } catch (CRMDBNotConnectedException exception) {
-            new ErrorWindow("SQLite3 database disconnected.");
-        } catch (SQLException exception) {
-            new ErrorWindow("SQL error: " + exception.getMessage());
-        }
+        totalIndividuals.setText(Double.toString(totalEarnedFromIndividuals));
+        totalCompanies.setText(Double.toString(totalEarnedFromCompanies));
     }
 
     /**
@@ -382,25 +316,13 @@ public class MainWindow {
         listAllInvoices.addActionListener(e -> updateInvoiceDropDownList(false));
 
         listCompaniesInvoices.addActionListener(e -> {
-            try {
-                invoices = database.getCompaniesInvoices();
-            } catch (CRMDBNotConnectedException exception) {
-                new ErrorWindow("SQLite3 database disconnected.");
-            } catch (SQLException exception) {
-                new ErrorWindow("SQL error: " + exception.getMessage());
-            }
+            invoices = database.getCompaniesInvoices();
 
             updateInvoiceDropDownList(true);
         });
 
         listIndividualsInvoices.addActionListener(e -> {
-            try {
-                invoices = database.getIndividualsInvoices();
-            } catch (CRMDBNotConnectedException exception) {
-                new ErrorWindow("SQLite3 database disconnected.");
-            } catch (SQLException exception) {
-                new ErrorWindow("SQL error: " + exception.getMessage());
-            }
+            invoices = database.getIndividualsInvoices();
 
             updateInvoiceDropDownList(true);
         });
@@ -414,35 +336,17 @@ public class MainWindow {
             }
 
             if (!searchByUidInvoice.getText().equals("")) {
-                try {
-                    Object[] result = database.getInvoiceById(Integer.parseInt(searchByUidInvoice.getText()));
+                Object[] result = database.getInvoiceById(Integer.parseInt(searchByUidInvoice.getText()));
 
-                    if (result != null) {
-                        invoices = new Object[1][3];
-                        invoices[0] = result;
-                    } else
-                        invoices = null;
-                } catch (CRMDBNotConnectedException exception) {
-                    new ErrorWindow("SQLite3 database disconnected.");
-                } catch (SQLException exception) {
-                    new ErrorWindow("SQL error: " + exception.getMessage());
-                }
+                if (result != null) {
+                    invoices = new Object[1][3];
+                    invoices[0] = result;
+                } else
+                    invoices = null;
             } else if (!searchByCustomerName.getText().equals("")) {
-                try {
-                    invoices = database.getInvoicesByCustomerName(searchByCustomerName.getText());
-                } catch (CRMDBNotConnectedException exception) {
-                    new ErrorWindow("SQLite3 database disconnected.");
-                } catch (SQLException exception) {
-                    new ErrorWindow("SQL error: " + exception.getMessage());
-                }
+                invoices = database.getInvoicesByCustomerName(searchByCustomerName.getText());
             } else if (!searchByDate.getText().equals("")) {
-                try {
-                    invoices = database.getInvoicesByDate(searchByDate.getText());
-                } catch (CRMDBNotConnectedException exception) {
-                    new ErrorWindow("SQLite3 database disconnected.");
-                } catch (SQLException exception) {
-                    new ErrorWindow("SQL error: " + exception.getMessage());
-                }
+                invoices = database.getInvoicesByDate(searchByDate.getText());
             }
 
             updateInvoiceDropDownList(true);
@@ -456,29 +360,23 @@ public class MainWindow {
     private void updateInvoiceTable() {
         invoicesTable.getTableHeader().setReorderingAllowed(false);
 
-        try {
-            Object toListInvoice = invoicesDropDownList.getSelectedItem();
+        Object toListInvoice = invoicesDropDownList.getSelectedItem();
 
-            if (toListInvoice != null) {
-                String toListInvoiceUid = toListInvoice.toString().substring(3, toListInvoice.toString().indexOf(" Date"));
-                Object[][] data = database.getProductsOfInvoice(Integer.parseInt(toListInvoiceUid));
+        if (toListInvoice != null) {
+            String toListInvoiceUid = toListInvoice.toString().substring(3, toListInvoice.toString().indexOf(" Date"));
+            Object[][] data = database.getProductsOfInvoice(Integer.parseInt(toListInvoiceUid));
 
-                DefaultTableModel tableModel = data == null ? new DefaultTableModel(invoiceDisplayTableColumnsNames, 0) :
-                        new DefaultTableModel(data, invoiceDisplayTableColumnsNames) {
-                            @Override
-                            public boolean isCellEditable(int row, int column) {
-                                return false;
-                            }
-                        };
+            DefaultTableModel tableModel = data == null ? new DefaultTableModel(invoiceDisplayTableColumnsNames, 0) :
+                    new DefaultTableModel(data, invoiceDisplayTableColumnsNames) {
+                        @Override
+                        public boolean isCellEditable(int row, int column) {
+                            return false;
+                        }
+                    };
 
-                invoicesTable.setModel(tableModel);
-            } else
-                invoicesTable.removeAll();
-        } catch (CRMDBNotConnectedException exception) {
-            new ErrorWindow("SQLite3 database disconnected.");
-        } catch (SQLException exception) {
-            new ErrorWindow("SQL error: " + exception.getMessage());
-        }
+            invoicesTable.setModel(tableModel);
+        } else
+            invoicesTable.removeAll();
     }
 
     /**
@@ -497,17 +395,11 @@ public class MainWindow {
         productsTable.getTableHeader().setReorderingAllowed(false);
 
         addProduct.addActionListener(e -> {
-            try {
                 this.database.insertProduct(productName.getText(), Double.parseDouble(productPrice.getText()),
                         Integer.parseInt(productStock.getText()));
                 resetProductsTextFields();
                 updateProductsTable();
                 updateProductsDropDownList();
-            } catch (CRMDBNotConnectedException exception) {
-                new ErrorWindow("SQLite3 database disconnected.");
-            } catch (SQLException exception) {
-                new ErrorWindow("SQL error: " + exception.getMessage());
-            }
         });
 
         productsTable.getModel().addTableModelListener(e -> {
@@ -516,30 +408,12 @@ public class MainWindow {
 
                 switch (e.getColumn()) {
                     case 2: // Price
-                        try {
                             database.updateProductPrice((Integer)tableModel.getValueAt(e.getFirstRow(), 0),
                                     Double.parseDouble((String)tableModel.getValueAt(e.getFirstRow(), 2)));
-                        } catch (CRMDBNotConnectedException exception) {
-                            new ErrorWindow("SQLite3 database disconnected.");
-                        } catch (SQLException exception) {
-                            new ErrorWindow("SQL error: " + exception.getMessage());
-                        } catch (InvalidProductException exception) {
-                            new ErrorWindow("Invalid product id passed to CRMDatabase::updateProductPrice at line " +
-                                    Integer.toString(exception.getStackTrace()[0].getLineNumber()));
-                        }
                         break;
                     case 3: // Stock
-                        try {
                             database.updateProductStock((Integer)tableModel.getValueAt(e.getFirstRow(), 0),
                                     Integer.parseInt((String)tableModel.getValueAt(e.getFirstRow(), 3)));
-                        } catch (CRMDBNotConnectedException exception) {
-                            new ErrorWindow("SQLite3 database disconnected.");
-                        } catch (SQLException exception) {
-                            new ErrorWindow("SQL error: " + exception.getMessage());
-                        } catch (InvalidProductException exception) {
-                            new ErrorWindow("Invalid product id passed to CRMDatabase::updateProductStock at line " +
-                                    Integer.toString(exception.getStackTrace()[0].getLineNumber()));
-                        }
                         break;
                     default:
                         break;
@@ -552,19 +426,16 @@ public class MainWindow {
      * Update products table from Products sub tab of Deposit tab.
      */
     private void updateProductsTable() {
-        try {
-            Object[][] data = database.getProducts();
-            DefaultTableModel tableModel = data == null ? new DefaultTableModel(productsTableColumnNames, 0) :
-                    new DefaultTableModel(data, productsTableColumnNames) {
-                        @Override public boolean isCellEditable(int row, int column) { return column != 0 && column != 1; }
-                    };
+        Object[][] data = database.getProducts();
+        DefaultTableModel tableModel = data == null ? new DefaultTableModel(productsTableColumnNames, 0) :
+                new DefaultTableModel(data, productsTableColumnNames) {
+                    @Override
+                    public boolean isCellEditable(int row, int column) {
+                        return column != 0 && column != 1;
+                    }
+                };
 
-            productsTable.setModel(tableModel);
-        } catch (CRMDBNotConnectedException exception) {
-            new ErrorWindow("SQLite3 database disconnected.");
-        } catch (SQLException exception) {
-            new ErrorWindow("SQL error: " + exception.getMessage());
-        }
+        productsTable.setModel(tableModel);
     }
 
     /**
@@ -586,34 +457,18 @@ public class MainWindow {
 
         searchProductButton.addActionListener(e -> {
             if (!searchProductUID.getText().isEmpty()) {
-                try {
-                    Object[][] product = new Object[1][productsTableColumnNames.length];
-                    product[0] = database.getProduct(Integer.parseInt(searchProductUID.getText()));
+                Object[][] product = new Object[1][productsTableColumnNames.length];
+                product[0] = database.getProduct(Integer.parseInt(searchProductUID.getText()));
 
-                    foundProductsTable.setModel(new DefaultTableModel(product, productsTableColumnNames) {
-                        @Override public boolean isCellEditable(int row, int column) { return false; }
-                    });
-                } catch (CRMDBNotConnectedException exception) {
-                    new ErrorWindow("SQLite3 database disconnected.");
-                } catch (SQLException exception) {
-                    new ErrorWindow("SQL error: " + exception.getMessage());
-                } catch (InvalidProductException exception) {
-                    new ErrorWindow("No product found!");
-                }
+                foundProductsTable.setModel(new DefaultTableModel(product, productsTableColumnNames) {
+                    @Override public boolean isCellEditable(int row, int column) { return false; }
+                });
             } else if (!searchProductName.getText().isEmpty()) {
-                try {
-                    Object[][] products = database.getProduct(searchProductName.getText());
+                Object[][] products = database.getProduct(searchProductName.getText());
 
-                    foundProductsTable.setModel(new DefaultTableModel(products, productsTableColumnNames) {
-                        @Override public boolean isCellEditable(int row, int column) { return false; }
-                    });
-                } catch (CRMDBNotConnectedException exception) {
-                    new ErrorWindow("SQLite3 database disconnected.");
-                } catch (SQLException exception) {
-                    new ErrorWindow("SQL error: " + exception.getMessage());
-                } catch (InvalidProductException exception) {
-                    new ErrorWindow("No products found!");
-                }
+                foundProductsTable.setModel(new DefaultTableModel(products, productsTableColumnNames) {
+                    @Override public boolean isCellEditable(int row, int column) { return false; }
+                });
             }
         });
     }
@@ -651,37 +506,28 @@ public class MainWindow {
         });
 
         addProductButton.addActionListener(e -> {
-            try {
-                Object[] productData = database.getProductByName(productsDropDownList.getSelectedItem().toString());
-                int productQuantity = Integer.parseInt(quantity.getText());
+            Object[] productData = database.getProductByName(productsDropDownList.getSelectedItem().toString());
+            int productQuantity = Integer.parseInt(quantity.getText());
 
-                invoiceProducts.add(new Product((Integer)productData[0], (String)productData[1],
-                        (Double)productData[2], productQuantity));
-                productsDropDownList.removeItemAt(productsDropDownList.getSelectedIndex());
+            invoiceProducts.add(new Product((Integer)productData[0], (String)productData[1],
+                    (Double)productData[2], productQuantity));
+            productsDropDownList.removeItemAt(productsDropDownList.getSelectedIndex());
 
-                Object[][] ob = new Object[invoiceProducts.size()][4];
+            Object[][] ob = new Object[invoiceProducts.size()][4];
 
-                for (int i = 0; i < invoiceProducts.size(); ++i) {
-                    ob[i][0] = invoiceProducts.get(i).getId();
-                    ob[i][1] = invoiceProducts.get(i).getName();
-                    ob[i][2] = invoiceProducts.get(i).getPrice();
-                    ob[i][3] = invoiceProducts.get(i).getQuantity();
-                }
-
-                invoiceProductsTable.setModel(new DefaultTableModel(ob, invoiceProductsTableColumnsNames) {
-                    @Override public boolean isCellEditable(int row, int column) { return false; }
-                });
-
-                Double price = Double.parseDouble(totalPriceLabel.getText()) + (Double)productData[2] * productQuantity;
-                totalPriceLabel.setText(price.toString());
-            } catch (CRMDBNotConnectedException exception) {
-                new ErrorWindow("SQLite3 database disconnected.");
-            } catch (SQLException exception) {
-                new ErrorWindow("SQL error: " + exception.getMessage());
-            } catch (InvalidProductException exception) {
-                new ErrorWindow("Invalid product name passed to CRMDatabase::getProductByName at line " +
-                        Integer.toString(exception.getStackTrace()[0].getLineNumber()));
+            for (int i = 0; i < invoiceProducts.size(); ++i) {
+                ob[i][0] = invoiceProducts.get(i).getId();
+                ob[i][1] = invoiceProducts.get(i).getName();
+                ob[i][2] = invoiceProducts.get(i).getPrice();
+                ob[i][3] = invoiceProducts.get(i).getQuantity();
             }
+
+            invoiceProductsTable.setModel(new DefaultTableModel(ob, invoiceProductsTableColumnsNames) {
+                @Override public boolean isCellEditable(int row, int column) { return false; }
+            });
+
+            Double price = Double.parseDouble(totalPriceLabel.getText()) + (Double)productData[2] * productQuantity;
+            totalPriceLabel.setText(price.toString());
         });
 
         createInvoiceButton.addActionListener(e -> {
@@ -700,33 +546,13 @@ public class MainWindow {
                 products[i][3] = invoiceProductsTable.getValueAt(i, 3);
             }
 
-            try {
-                database.insertInvoice(customerId, products);
-            } catch (CRMDBNotConnectedException exception) {
-                new ErrorWindow("SQLite3 database disconnected.");
-            } catch (SQLException exception) {
-                new ErrorWindow("SQL error: " + exception.getMessage());
-            } catch (InvalidCustomerException exception) {
-                new ErrorWindow("Attempted to insert an invoice with an invalid customer.");
-            } catch (EmptyInvoiceException exception) {
-                new ErrorWindow("Attempted to insert an invoice with no products.");
-            } catch (InvalidProductException exception) {
-                new ErrorWindow("Attempted to insert an invoice with an invalid product.");
-            }
+            database.insertInvoice(customerId, products);
 
             // Update products stock
             for (Object[] product : products) {
-                try {
-                    int productId = (Integer) product[0];
-                    database.updateProductStock(productId,
-                            database.getProductStock(productId) - (Integer) product[3]);
-                } catch (CRMDBNotConnectedException exception) {
-                    new ErrorWindow("SQLite3 database disconnected.");
-                } catch (SQLException exception) {
-                    new ErrorWindow("SQL error: " + exception.getMessage());
-                } catch (InvalidProductException exception) {
-                    new ErrorWindow("Attempted to update the stock of an invalid product.");
-                }
+                int productId = (Integer) product[0];
+                database.updateProductStock(productId,
+                        database.getProductStock(productId) - (Integer) product[3]);
             }
 
             updateProductsTable();  // Update Deposit tab->Products sub-tab table also.
@@ -748,29 +574,20 @@ public class MainWindow {
      * Updates addProductButton
      */
     private void updateAvailability() {
-        try {
-            Object[] product = database.getProductByName((String)productsDropDownList.getSelectedItem());
+        Object[] product = database.getProductByName((String)productsDropDownList.getSelectedItem());
 
-            if (product == null || quantity.getText().equals("")) {
-                addProductButton.setText("Check availability.");
-                addProductButton.setEnabled(false);
-                return;
-            }
+        if (product == null || quantity.getText().equals("")) {
+            addProductButton.setText("Check availability.");
+            addProductButton.setEnabled(false);
+            return;
+        }
 
-            if (Integer.parseInt(quantity.getText()) > (Integer)product[3]) {
-                addProductButton.setText("Unavailable");
-                addProductButton.setEnabled(false);
-            } else {
-                addProductButton.setText("Add Product");
-                addProductButton.setEnabled(true);
-            }
-        } catch (CRMDBNotConnectedException exception) {
-            new ErrorWindow("SQLite3 database disconnected.");
-        } catch (SQLException exception) {
-            new ErrorWindow("SQL error: " + exception.getMessage());
-        } catch (InvalidProductException exception) {
-            new ErrorWindow("Invalid product name passed to CRMDatabase::getProductByName at line " +
-                    Integer.toString(exception.getStackTrace()[0].getLineNumber()));
+        if (Integer.parseInt(quantity.getText()) > (Integer)product[3]) {
+            addProductButton.setText("Unavailable");
+            addProductButton.setEnabled(false);
+        } else {
+            addProductButton.setText("Add Product");
+            addProductButton.setEnabled(true);
         }
     }
 
@@ -778,37 +595,25 @@ public class MainWindow {
      * Update customer drop down list(combo box) from Invoice tab.
      */
     private void updateCustomersDropDownList() {
-        try {
-            List<Customer> customers = database.getCustomers();
+        List<Customer> customers = database.getCustomers();
 
-            customersDropDownList.removeAllItems();
+        customersDropDownList.removeAllItems();
 
-            for (Customer c : customers)
-                customersDropDownList.addItem(c);
-        } catch (CRMDBNotConnectedException exception) {
-            new ErrorWindow("SQLite3 database disconnected.");
-        } catch (SQLException exception) {
-            new ErrorWindow("SQL error: " + exception.getMessage());
-        }
-    }
+        for (Customer c : customers)
+            customersDropDownList.addItem(c);
+}
 
     /**
      * Update products drop down list(combo box) from Invoice tab.
      */
     private void updateProductsDropDownList() {
-        try {
-            Object[][] products = database.getProducts();
+        Object[][] products = database.getProducts();
 
-            productsDropDownList.removeAllItems();
+        productsDropDownList.removeAllItems();
 
-            if (products != null)
-                for (Object[] p : products)
-                    productsDropDownList.addItem(p[1]);
-        } catch (CRMDBNotConnectedException exception) {
-            new ErrorWindow("SQLite3 database disconnected.");
-        } catch (SQLException exception) {
-            new ErrorWindow("SQL error: " + exception.getMessage());
-        }
+        if (products != null)
+            for (Object[] p : products)
+                productsDropDownList.addItem(p[1]);
     }
 
     /**
@@ -818,13 +623,7 @@ public class MainWindow {
         invoicesDropDownList.removeAllItems();
 
         if (!filtering) {
-            try {
-                invoices = database.getInvoices();
-            } catch (CRMDBNotConnectedException exception) {
-                new ErrorWindow("SQLite3 database disconnected.");
-            } catch (SQLException exception) {
-                new ErrorWindow("SQL error: " + exception.getMessage());
-            }
+            invoices = database.getInvoices();
         }
 
         if (invoices != null)
